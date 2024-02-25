@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "ezmsg-vis"
+version = "0.1.0"
+description = "ezmsg namespace package to visualize running graphs"
+authors = ["Chadwick Boulay <chad@cbneurotech.com>"]
+readme = "README.md"
+packages = [
+  { include = "ezmsg", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+numpy = "^1.26.4"
+pygraphviz = "^1.12"
+pygame = "^2.5.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
