@@ -46,7 +46,7 @@ def start_shmem_buf_proc(
     return process
 
 
-def main(graph_ip: str = "127.0.0.1", graph_port: int = 25978):
+def monitor(graph_ip: str = "127.0.0.1", graph_port: int = 25978):
     pygame.init()
 
     # Screen
@@ -278,5 +278,9 @@ def main(graph_ip: str = "127.0.0.1", graph_port: int = 25978):
     pygame.quit()
 
 
+def main():
+    typer.run(monitor)
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    main()
