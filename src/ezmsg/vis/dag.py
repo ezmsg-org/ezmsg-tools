@@ -5,10 +5,11 @@ from uuid import uuid4
 
 import ezmsg.core as ez
 import pandas as pd
-import pygraphviz as pgv
 
 
-def get_graph(graph_address: typing.Tuple[str, int]) -> pgv.AGraph:
+def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
+    import pygraphviz as pgv
+
     # Create a graphviz object with our graph components as nodes and our connections as edges.
     G = pgv.AGraph(name="ezmsg-vis", strict=False, directed=True)
     G.graph_attr["label"] = "ezmsg-vis"
@@ -86,7 +87,7 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> pgv.AGraph:
     return G
 
 
-def pgv2pd(g: pgv.AGraph) -> pd.DataFrame:
+def pgv2pd(g: "pygraphviz.AGraph") -> pd.DataFrame:
     df_ps = pd.DataFrame(g.edges(), columns=["pub", "sub"])
 
     def recurse_upstream(sub):
