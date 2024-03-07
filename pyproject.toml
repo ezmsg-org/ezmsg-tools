@@ -8,13 +8,20 @@ packages = [
   { include = "ezmsg", from = "src" }
 ]
 
+
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 numpy = "^1.26.4"
-pygraphviz = "^1.12"
+pygraphviz = { version = "*", source = "pypi", optional = true }
 pygame = "^2.5.2"
 
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+
+[tool.poetry.extras]
+app = [
+  "pygraphviz",
+]
