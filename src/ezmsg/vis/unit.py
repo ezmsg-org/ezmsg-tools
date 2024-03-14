@@ -21,7 +21,7 @@ def to_bytes(data: typing.Any) -> bytes:
 
 
 class ShMemCircBuffSettings(ez.Settings):
-    shmem_name: str  # and shmem_name + "_meta" for the metadata
+    shmem_name: typing.Optional[str]
     shared_state: dict
     topic: str
     buf_dur: float
@@ -79,6 +79,8 @@ class ShMemCircBuff(ez.Unit):
                     create=True,
                     size=shm_arr_size,
                 )
+            if self.STATE.cur_settings.shmem_name is None:
+                self.STATE.cur_settings.shmem_name = self.STATE.shm_arr.name
             self.STATE.write_index = np.ndarray(
                 (1,), dtype=np.uint64, buffer=self.STATE.shm_arr.buf[:8]
             )
@@ -96,7 +98,7 @@ class ShMemCircBuff(ez.Unit):
                     self.STATE.shm_arr.unlink()
                 break
             else:
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.2)
 
         raise ez.NormalTermination
 
