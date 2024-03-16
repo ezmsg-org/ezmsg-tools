@@ -59,13 +59,11 @@ class Sweep(ShmemRenderer):
 
     def _reset_plot(self):
         # Reset plot parameters
-        plot_samples = int(PLOT_DUR * self._shared_state["srate"])
+        plot_samples = int(PLOT_DUR * self._shmem_meta["srate"])
         self._plot_cfg["xvec"] = np.arange(plot_samples)
         self._plot_cfg["x2px"] = self._plot_rect.width / plot_samples
         # self._plot_cfg["yrange"] = INIT_Y_RANGE
-        self._plot_cfg["stats_gen"] = running_stats(
-            self._shared_state["srate"], PLOT_DUR
-        )
+        self._plot_cfg["stats_gen"] = running_stats(self._shmem_meta["srate"], PLOT_DUR)
         self._plot_cfg["stats_gen"].send(None)  # Prime the generator
         self._read_index = 0
         # Blank the surface
@@ -100,7 +98,7 @@ class Sweep(ShmemRenderer):
                         t_slice = np.s_[:]
                         self._plot_cfg["yrange"] = new_y_range
 
-                n_chs = self._shared_state["shape"][1]
+                n_chs = self._arr.shape[1]
                 yoffsets = (np.arange(n_chs) + 0.5) * self._plot_cfg["yrange"]
                 y_span = (n_chs + 1) * self._plot_cfg["yrange"]
                 y2px = self._plot_rect.height / y_span

@@ -1,10 +1,6 @@
 from multiprocessing import Manager
-from pathlib import Path
 import typing
 
-import ezmsg.core as ez
-import numpy as np
-import numpy.typing as npt
 import pygame
 import pygame.locals
 import typer
@@ -31,38 +27,36 @@ def monitor(graph_ip: str = "127.0.0.1", graph_port: int = 25978):
     sweep: typing.Optional[Sweep] = None
 
     # Plots
-    with Manager() as manager:
-        running = True
-        sweep = Sweep(
-            manager,
-            (screen_width - dag.size[0], screen_height),
-            tl_offset=(dag.size[0], 0),
-            graph_ip=graph_ip,
-            graph_port=graph_port,
-        )
 
-        while running:
-            new_node_path = None
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
+    sweep = Sweep(
+        (screen_width - dag.size[0], screen_height),
+        tl_offset=(dag.size[0], 0),
+        graph_ip=graph_ip,
+        graph_port=graph_port,
+    )
+    running = True
+    while running:
+        new_node_path = None
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                break
+            elif event.type == pygame.KEYDOWN:
+                # Keyboard presses
+                if event.key == pygame.K_ESCAPE:
+                    # Close the application when Esc key is pressed
                     running = False
                     break
-                elif event.type == pygame.KEYDOWN:
-                    # Keyboard presses
-                    if event.key == pygame.K_ESCAPE:
-                        # Close the application when Esc key is pressed
-                        running = False
-                        break
-                new_node_path = dag.handle_event(event)
-                sweep.handle_event(event)
+            new_node_path = dag.handle_event(event)
+            sweep.handle_event(event)
 
-            sweep.reset(new_node_path)  # Will ignore None or repeated path
+        sweep.reset(new_node_path)  # Will ignore None or repeated path
 
-            rects = dag.update(screen)
-            rects += sweep.update(screen)
-            pygame.display.update(rects)
+        rects = dag.update(screen)
+        rects += sweep.update(screen)
+        pygame.display.update(rects)
 
-        sweep.cleanup()
+    sweep.cleanup()
 
     pygame.quit()
 
