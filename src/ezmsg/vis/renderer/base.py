@@ -95,7 +95,7 @@ class ShmemRenderer(pygame.Surface):
             buf_dur=buf_dur,
             axis=axis,
         )
-        self._proc = AttachShmProcess(unit_settings)
+        self._proc = AttachShmProcess(unit_settings, address=self._graph_addr)
         self._proc.start()
 
     def _attach_shmem(self, shmem_meta: dict):
