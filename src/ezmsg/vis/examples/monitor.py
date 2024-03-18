@@ -5,7 +5,7 @@ import pygame
 import pygame.locals
 import typer
 
-from ezmsg.vis.dag import VisDAG
+from ezmsg.vis.pygame.dag import VisDAG
 from ezmsg.vis.renderer.timeseries import Sweep
 
 
