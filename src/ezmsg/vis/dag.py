@@ -153,7 +153,7 @@ class VisDAG:
         return self._image_rect.size
 
     def handle_event(self, event: pygame.event.Event) -> typing.Optional[str]:
-        new_node_path = None
+        clicked_node_path = None
         if event.type in [pygame.MOUSEWHEEL, pygame.MOUSEBUTTONDOWN]:
             mouse_pos = pygame.mouse.get_pos()
             if self._image_rect.left <= mouse_pos[0] <= self._image_rect.right:
@@ -178,8 +178,8 @@ class VisDAG:
                             (self._node_df.x - graph_pos[0]) ** 2
                             + (self._node_df.y - graph_pos[1]) ** 2
                         ).argmin()
-                        new_node_path = f"{self._node_df.iloc[min_row]['upstream']}"
-        return new_node_path
+                        clicked_node_path = f"{self._node_df.iloc[min_row]['upstream']}"
+        return clicked_node_path
 
     def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         res = []
