@@ -1,6 +1,5 @@
 import typing
 
-import numpy.typing as npt
 import pygame
 
 from ..mirror import EZShmMirror
@@ -32,7 +31,7 @@ class BaseRenderer(pygame.Surface):
         self._plot_rect = self.get_rect(topleft=self._tl_offset)
         self._font = pygame.font.Font(None, 36)  # Default font and size 36
         self._refresh_text = True
-        self._full_refresh = True
+        self._plot_needs_reset = True
         self.fill(PLOT_BG_COLOR)
 
     def handle_event(self, event: pygame.event.Event):
@@ -50,6 +49,7 @@ class BaseRenderer(pygame.Surface):
         if node_path is not None and node_path != self._node_path:
             self._node_path = node_path
         self._refresh_text = True
+        self._plot_needs_reset = True
         # This is all we can do until the metadata becomes available.
 
     def _print_node_path(self, surface: pygame.Surface) -> pygame.Rect:
@@ -80,15 +80,14 @@ class BaseRenderer(pygame.Surface):
         rects = []
         if not self._mirror.connected:
             self._mirror.connect()  # Has built-in rate-limiter
-            if self._mirror.connected:
-                self._reset_plot()
-                self._refresh_text = True
+
+        if self._mirror.connected and self._plot_needs_reset:
+            self._reset_plot()
+            self._plot_needs_reset = False
+            self._refresh_text = True
+
         if self._refresh_text:
             rects.append(self._print_node_path(surface))
             self._refresh_text = False
-        if self._full_refresh:
-            # Full-screen render
-            rects.append(self._plot_rect)
-            self._full_refresh = False
 
         return rects

@@ -24,7 +24,7 @@ class EZShmMirror:
         self._shmem: typing.Optional[SharedMemory] = None
         self._meta: typing.Optional[ShmemArrMeta] = None
         self._buffer: typing.Optional[npt.NDArray] = None
-        self._read_index = 0
+        self._read_index = 0  # Used by auto_view
         self._last_connect_try = -np.inf
 
     @property
@@ -32,6 +32,14 @@ class EZShmMirror:
         if self._meta is None:
             return None
         return copy.deepcopy(self._meta)
+
+    @property
+    def buffer(self) -> typing.Optional[npt.NDArray]:
+        return self._buffer
+
+    @property
+    def write_index(self) -> typing.Optional[int]:
+        return self._meta.write_index
 
     @property
     def connected(self) -> bool:
@@ -71,9 +79,7 @@ class EZShmMirror:
             self._try_connect()
             self._last_connect_try = time.time()
 
-    def view_samples(
-        self, n: typing.Optional[int] = None
-    ) -> typing.Optional[npt.NDArray]:
+    def auto_view(self, n: typing.Optional[int] = None) -> typing.Optional[npt.NDArray]:
         if self._shmem is None:
             return None
 

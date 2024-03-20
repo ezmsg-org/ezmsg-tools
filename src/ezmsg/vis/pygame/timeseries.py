@@ -46,64 +46,69 @@ def running_stats(
 
 class Sweep(BaseRenderer):
     def __init__(
-        self, *args, yrange: float = INIT_Y_RANGE, autoscale: bool = True, **kwargs
+        self,
+        *args,
+        yrange: float = INIT_Y_RANGE,
+        autoscale: bool = True,
+        dur: float = PLOT_DUR,
+        **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self._xvec: typing.Optional[npt.NDArray] = None
-        self._plot_cfg = {
-            "xvec": np.array([]),
-            "yrange": yrange,
-            "stats_gen": None,
-            "autoscale": autoscale,
-            "x_index": 0,  # index into xvec where the next plot starts.
-        }
+        self._y_range = yrange
+        self._autoscale = autoscale
+        self._dur = dur
+        self._xvec = np.array([])  # Vector of indices
+        self._plot_x_idx = 0  # index into xvec where the next plot starts.
+        self._read_index = 0  # Index into shmem buffer
+        self._stats_gen: typing.Optional[typing.Generator] = None
         self._last_y_vec: typing.Optional[npt.NDArray] = None
+        self._x2px: float = 1.0
 
     def _reset_plot(self):
         # Reset plot parameters
         meta = self._mirror.meta
-        plot_samples = int(PLOT_DUR * meta.srate)
-        self._plot_cfg["xvec"] = np.arange(plot_samples)
-        self._plot_cfg["x2px"] = self._plot_rect.width / plot_samples
-        # self._plot_cfg["yrange"] = INIT_Y_RANGE
-        self._plot_cfg["stats_gen"] = running_stats(meta.srate, PLOT_DUR)
-        self._plot_cfg["stats_gen"].send(None)  # Prime the generator
-        self._plot_cfg["x_index"] = 0
+        plot_samples = int(self._dur * meta.srate)
+        self._xvec = np.arange(plot_samples)
+        self._x2px = self._plot_rect.width / plot_samples
+        self._stats_gen = running_stats(meta.srate, time_constant=self._dur)
+        self._stats_gen.send(None)  # Prime the generator
+        self._plot_x_idx = 0
+        self._read_index = 0
         self._last_y_vec = None
         # Blank the surface
         self.fill(PLOT_BG_COLOR)
         pygame.display.update(self._plot_rect)
 
-    def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
+    def update_with_copy(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         rects = super().update(surface)
-        data = self._mirror.view_samples(n=None)
+        data = self._mirror.auto_view(n=None)
         if data is not None:
-            if self._plot_cfg["autoscale"]:
+            if self._autoscale:
                 # Check if the scale has changed.
-                means, stds = self._plot_cfg["stats_gen"].send(data)
+                means, stds = self._stats_gen.send(data)
                 new_y_range = 3 * np.mean(stds)
                 b_reset_scale = (
-                    new_y_range < 0.8 * self._plot_cfg["yrange"]
-                    or new_y_range > 1.2 * self._plot_cfg["yrange"]
+                    new_y_range < 0.8 * self._y_range
+                    or new_y_range > 1.2 * self._y_range
                 )
                 if b_reset_scale:
-                    self._plot_cfg["yrange"] = new_y_range
+                    self._y_range = new_y_range
                     # TODO: We should also redraw the entire plot at the new scale.
                     #  However, we do not have a copy of all visible data.
 
             n_chs = data.shape[1]
-            yoffsets = (np.arange(n_chs) + 0.5) * self._plot_cfg["yrange"]
-            y_span = (n_chs + 1) * self._plot_cfg["yrange"]
+            yoffsets = (np.arange(n_chs) + 0.5) * self._y_range
+            y_span = (n_chs + 1) * self._y_range
             y2px = self._plot_rect.height / y_span
 
             # Establish the minimum rectangle for the update
             n_samps = data.shape[0]
             dat_offset = 0
             while n_samps > 0:
-                x0 = self._plot_cfg["x_index"]
+                x0 = self._plot_x_idx
                 b_prepend = x0 != 0 and self._last_y_vec is not None
                 if b_prepend:
-                    xvec = self._plot_cfg["xvec"][x0 - 1 : x0 + n_samps]
+                    xvec = self._xvec[x0 - 1 : x0 + n_samps]
                     if dat_offset == 0:
                         _data = np.concatenate(
                             [self._last_y_vec, data[: xvec.shape[0] - 1]], axis=0
@@ -111,13 +116,13 @@ class Sweep(BaseRenderer):
                     else:
                         _data = data[dat_offset - 1 : dat_offset + xvec.shape[0] - 1]
                 else:
-                    xvec = self._plot_cfg["xvec"][x0 : x0 + n_samps]
+                    xvec = self._xvec[x0 : x0 + n_samps]
                     _data = data[dat_offset : dat_offset + xvec.shape[0]]
 
                 # Identify the rectangle that we will be plotting over.
                 _rect_x = (
-                    int(xvec[0] * self._plot_cfg["x2px"]),
-                    int(np.ceil(xvec[-1] * self._plot_cfg["x2px"])),
+                    int(xvec[0] * self._x2px),
+                    int(np.ceil(xvec[-1] * self._x2px)),
                 )
                 update_rect = pygame.Rect(
                     (_rect_x[0], 0),
@@ -132,9 +137,7 @@ class Sweep(BaseRenderer):
                     for ch_ix, ch_offset in enumerate(yoffsets):
                         plot_dat = _data[:, ch_ix] + ch_offset
                         try:
-                            xy = np.column_stack(
-                                (xvec * self._plot_cfg["x2px"], plot_dat * y2px)
-                            )
+                            xy = np.column_stack((xvec * self._x2px, plot_dat * y2px))
                         except ValueError:
                             print("DEBUG")
                         pygame.draw.lines(self, PLOT_LINE_COLOR, 0, xy)
@@ -151,17 +154,14 @@ class Sweep(BaseRenderer):
                 rects.append(_rect)
 
                 n_new = (xvec.shape[0] - 1) if b_prepend else xvec.shape[0]
-                self._plot_cfg["x_index"] += n_new
-                self._plot_cfg["x_index"] %= self._plot_cfg["xvec"].shape[0]
+                self._plot_x_idx += n_new
+                self._plot_x_idx %= self._xvec.shape[0]
                 n_samps -= n_new
                 dat_offset += n_new
                 self._last_y_vec = _data[-1:].copy()
 
             # Draw cursor
-            curs_x = int(
-                ((self._plot_cfg["x_index"] + 1) % self._plot_cfg["xvec"].shape[0])
-                * self._plot_cfg["x2px"]
-            )
+            curs_x = int(((self._plot_x_idx + 1) % self._xvec.shape[0]) * self._x2px)
             curs_rect = pygame.draw.line(
                 self,
                 PLOT_LINE_COLOR,
@@ -178,4 +178,78 @@ class Sweep(BaseRenderer):
             )
             rects.append(_rect)
 
+        return rects
+
+    def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
+        rects = super().update(surface)
+        if (
+            self._mirror.buffer is not None
+            and self._read_index != self._mirror.write_index
+        ):
+            if self._mirror.write_index < self._read_index:
+                n_samples = self._xvec.shape[0] - self._read_index
+            else:
+                n_samples = self._mirror.write_index - self._read_index
+            if n_samples > 1 or (n_samples == 1 and self._read_index != 0):
+                t_slice = np.s_[
+                    max(0, self._read_index - 1) : self._read_index + n_samples
+                ]
+                if self._autoscale:
+                    means, stds = self._stats_gen.send(self._mirror.buffer[t_slice])
+                    new_y_range = 3 * np.mean(stds)
+                    b_reset_scale = (
+                        new_y_range < 0.8 * self._y_range
+                        or new_y_range > 1.2 * self._y_range
+                    )
+                    if b_reset_scale:
+                        self._y_range = new_y_range
+                        t_slice = np.s_[:]
+
+                n_chs = self._mirror.buffer.shape[1]
+                yoffsets = (np.arange(n_chs) + 0.5) * self._y_range
+                y_span = (n_chs + 1) * self._y_range
+                y2px = self._plot_rect.height / y_span
+
+                _x = self._xvec[t_slice]
+                _rect_x = (int(_x[0] * self._x2px), int(np.ceil(_x[-1] * self._x2px)))
+                update_rect = pygame.Rect(
+                    (_rect_x[0], 0),
+                    (_rect_x[1] - _rect_x[0] + 5, self._plot_rect.height),
+                )
+                # Blank the rectangle with bgcolor
+                pygame.draw.rect(self, PLOT_BG_COLOR, update_rect)
+
+                # Plot the lines
+                for ch_ix, ch_offset in enumerate(yoffsets):
+                    plot_dat = self._mirror.buffer[t_slice, ch_ix] + ch_offset
+                    try:
+                        xy = np.column_stack((_x * self._x2px, plot_dat * y2px))
+                    except ValueError:
+                        print(_x.shape, plot_dat.shape)
+                        raise
+                    pygame.draw.lines(self, PLOT_LINE_COLOR, 0, xy)
+
+                self._read_index = (self._read_index + n_samples) % self._xvec.shape[0]
+
+                # Draw cursor
+                curs_x = int(
+                    ((self._read_index + 1) % self._xvec.shape[0]) * self._x2px
+                )
+                pygame.draw.line(
+                    self,
+                    PLOT_LINE_COLOR,
+                    (curs_x, 0),
+                    (curs_x, self._plot_rect.height),
+                )
+
+                # Update
+                _rect = surface.blit(
+                    self,
+                    (
+                        self._tl_offset[0] + update_rect.x,
+                        self._tl_offset[1],
+                    ),
+                    update_rect,
+                )
+                rects.append(_rect)
         return rects

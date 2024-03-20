@@ -11,6 +11,7 @@ from ezmsg.vis.mirror import EZShmMirror
 SHMEM_NAME = "ezmsg-vis-monitor"
 GRAPH_IP = "127.0.0.1"
 GRAPH_PORT = 25978
+PLOT_DUR = 2.0
 
 
 def monitor(
@@ -35,7 +36,10 @@ def monitor(
     #  If you have a pre-existing pipeline with ShMemCircBuff already in it then this is not needed.
     #  All that's needed is to know the name of the shared memory.
     ez_proc_man = EZProcManager(
-        graph_ip=graph_ip, graph_port=graph_port, shmem_name=shmem_name
+        graph_ip=graph_ip,
+        graph_port=graph_port,
+        shmem_name=shmem_name,
+        buf_dur=PLOT_DUR,
     )
 
     # Data Plotter. Puts a surface on the screen, plots 2D lines
@@ -45,6 +49,7 @@ def monitor(
         shmem_name,
         (screen_width - dag.size[0], screen_height),
         tl_offset=(dag.size[0], 0),
+        dur=PLOT_DUR,
     )
 
     running = True

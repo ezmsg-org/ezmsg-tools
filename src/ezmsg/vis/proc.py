@@ -47,9 +47,12 @@ class EZProcManager:
     We do not actually interact with the shared memory in this class. See .mirror.EzmsgShmMirror.
     """
 
-    def __init__(self, graph_ip: str, graph_port: int, shmem_name: str) -> None:
-        self._shmem_name = shmem_name
+    def __init__(
+        self, graph_ip: str, graph_port: int, shmem_name: str, buf_dur: float = BUF_DUR
+    ) -> None:
         self._graph_addr: typing.Tuple[str, int] = (graph_ip, graph_port)
+        self._shmem_name = shmem_name
+        self._buf_dur = buf_dur
         self._proc = None
         self._node_path: typing.Optional[str] = None
 
@@ -68,17 +71,23 @@ class EZProcManager:
     def _cleanup_subprocess(self) -> None:
         if self._proc is not None:
             # Send message to kill process. self._shmem_meta.running = False
-            old_shm = SharedMemory(name=self._shmem_name, create=False)
-            meta = ShmemArrMeta.from_buffer(old_shm.buf)
-            meta.running = False
+            old_shm = None
+            try:
+                old_shm = SharedMemory(name=self._shmem_name, create=False)
+                meta = ShmemArrMeta.from_buffer(old_shm.buf)
+                meta.running = False
+            except FileNotFoundError:
+                # Not sure how we can get to this state... proc is running but shmem doesn't exist.
+                pass
             # Close process
             self._proc.join()
             self._proc = None
-            meta = None
-            try:
-                old_shm.close()
-            except BufferError as e:
-                print("EZProcManager._cleanup_subprocess():", e)
+            if old_shm is not None:
+                meta = None
+                try:
+                    old_shm.close()
+                except BufferError as e:
+                    print("EZProcManager._cleanup_subprocess():", e)
             # TODO: Somehow closing the proc isn't enough to clear the VISBUFF connections.
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -88,10 +97,10 @@ class EZProcManager:
                 )
             )
 
-    def _init_subprocess(self, buf_dur: float = BUF_DUR, axis: str = "time"):
+    def _init_subprocess(self, axis: str = "time"):
         unit_settings = ShMemCircBuffSettings(
             shmem_name=self._shmem_name,
-            buf_dur=buf_dur,
+            buf_dur=self._buf_dur,
             axis=axis,
         )
         self._proc = EzMonitorProcess(
