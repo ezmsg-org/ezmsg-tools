@@ -30,22 +30,22 @@ def monitor(
     #  and get the name of the node that was clicked on, and we want to visualize.
     dag = VisDAG(screen_height=screen_height, graph_ip=graph_ip, graph_port=graph_port)
 
-    # Data Plotter. Puts a surface on the screen, accepts data chunks, plots 2D lines
-    #  with some basic auto-scaling.
-    sweep = Sweep(
-        (screen_width - dag.size[0], screen_height), tl_offset=(dag.size[0], 0)
-    )
-
     # ezmsg process manager -- process runs ezmsg context to attach a node to running pipeline.
     #  We don't have the name of the target node yet so the manager does not start the proc yet.
     #  If you have a pre-existing pipeline with ShMemCircBuff already in it then this is not needed.
+    #  All that's needed is to know the name of the shared memory.
     ez_proc_man = EZProcManager(
         graph_ip=graph_ip, graph_port=graph_port, shmem_name=shmem_name
     )
 
-    # Local object that mirrors the shared memory in a ShMemCircBuff node in a running ezmsg pipeline.
-    #  Calls to ez_mirror's methods won't do anything until the ezmsg pipeline is running.
-    ez_mirror = EZShmMirror(shmem_name=shmem_name)
+    # Data Plotter. Puts a surface on the screen, plots 2D lines
+    #  with some basic auto-scaling. We pass it shmem_name so it
+    #  may create its own reference to the ez msg shared memory.
+    sweep = Sweep(
+        shmem_name,
+        (screen_width - dag.size[0], screen_height),
+        tl_offset=(dag.size[0], 0),
+    )
 
     running = True
     while running:
@@ -65,31 +65,19 @@ def monitor(
 
         if new_node_path is not None and new_node_path != ez_proc_man.node_path:
             # Clicked on a new node to monitor
-            ez_mirror.reset()  # Clean up mirror's shared memory
+            sweep.reset(new_node_path)  # Reset state (incl shmem) and blank surface
             ez_proc_man.reset(new_node_path)  # Close subprocess and start a new one
-            sweep.reset(new_node_path)  # Reset state and blank surface
             # Remaining initialization must wait until subprocess has seen data.
 
         # Refresh / scroll dag image if required
         rects = dag.update(screen)
 
-        # If ez_mirror has yet to materialize shmem, try again.
-        if not ez_mirror.connected:
-            ez_mirror.connect()  # Has a built-in rate-limiter
+        # Update the sweep plot (internally it uses shmem)
+        rects += sweep.update(screen)
 
-        # If we have yet to pass the metadata to sweep, try that now
-        if ez_mirror.connected and not sweep.has_meta:
-            sweep.set_meta(ez_mirror.meta)
-
-        # Get a view of the shared buffer. Will be None if requested samples are not available.
-        #  Will always be None if ez_mirror has yet to connect.
-        view = ez_mirror.view_samples(n=None)
-        if view is not None:
-            rects += sweep.update(screen, view)
         pygame.display.update(rects)
 
-    # sweep.cleanup()
-    ez_mirror.reset()
+    sweep.reset(None)
     ez_proc_man.cleanup()
 
     pygame.quit()

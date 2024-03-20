@@ -61,11 +61,12 @@ class Sweep(BaseRenderer):
 
     def _reset_plot(self):
         # Reset plot parameters
-        plot_samples = int(PLOT_DUR * self._meta.srate)
+        meta = self._mirror.meta
+        plot_samples = int(PLOT_DUR * meta.srate)
         self._plot_cfg["xvec"] = np.arange(plot_samples)
         self._plot_cfg["x2px"] = self._plot_rect.width / plot_samples
         # self._plot_cfg["yrange"] = INIT_Y_RANGE
-        self._plot_cfg["stats_gen"] = running_stats(self._meta.srate, PLOT_DUR)
+        self._plot_cfg["stats_gen"] = running_stats(meta.srate, PLOT_DUR)
         self._plot_cfg["stats_gen"].send(None)  # Prime the generator
         self._plot_cfg["x_index"] = 0
         self._last_y_vec = None
@@ -73,12 +74,9 @@ class Sweep(BaseRenderer):
         self.fill(PLOT_BG_COLOR)
         pygame.display.update(self._plot_rect)
 
-    def update(
-        self,
-        surface: pygame.Surface,
-        data: typing.Optional[npt.NDArray],
-    ) -> typing.List[pygame.Rect]:
-        rects = super().update(surface, data)
+    def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
+        rects = super().update(surface)
+        data = self._mirror.view_samples(n=None)
         if data is not None:
             if self._plot_cfg["autoscale"]:
                 # Check if the scale has changed.

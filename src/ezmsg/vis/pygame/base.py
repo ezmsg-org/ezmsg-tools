@@ -3,6 +3,8 @@ import typing
 import numpy.typing as npt
 import pygame
 
+from ..mirror import EZShmMirror
+
 
 PLOT_BG_COLOR = (255, 255, 255)
 PLOT_FONT_COLOR = (0, 0, 0)
@@ -18,19 +20,20 @@ class BaseRenderer(pygame.Surface):
 
     def __init__(
         self,
+        shmem_name: str,
         *args,
         tl_offset: typing.Tuple[int, int] = (0, 0),
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.fill(PLOT_BG_COLOR)
+        self._mirror = EZShmMirror(shmem_name=shmem_name)
         self._node_path: typing.Optional[str] = None
         self._tl_offset: typing.Tuple[int, int] = tl_offset
         self._plot_rect = self.get_rect(topleft=self._tl_offset)
         self._font = pygame.font.Font(None, 36)  # Default font and size 36
-        self._meta = None
         self._refresh_text = True
         self._full_refresh = True
+        self.fill(PLOT_BG_COLOR)
 
     def handle_event(self, event: pygame.event.Event):
         if event.type in [pygame.MOUSEWHEEL, pygame.MOUSEBUTTONDOWN]:
@@ -38,33 +41,25 @@ class BaseRenderer(pygame.Surface):
             # TODO: Check if mouse_pos is over self
             # TODO: Respond to mouse.
 
-    @property
-    def has_meta(self) -> bool:
-        return self._meta is not None
-
     def _reset_plot(self):
         raise NotImplementedError
 
     def reset(self, node_path: typing.Optional[str]) -> None:
-        self._meta = None
+        self._mirror.reset()
         self.fill(PLOT_BG_COLOR)
         if node_path is not None and node_path != self._node_path:
             self._node_path = node_path
         self._refresh_text = True
         # This is all we can do until the metadata becomes available.
 
-    def set_meta(self, meta):
-        self._meta = meta
-        self._reset_plot()
-        self._refresh_text = True
-
     def _print_node_path(self, surface: pygame.Surface) -> pygame.Rect:
         #  TEMP: Render the node_path
-        if self._meta is not None:
+        meta = self._mirror.meta
+        if meta is not None:
             import numpy as np
 
-            buf_shape = self._meta.shape[: self._meta.ndim]
-            buf_dtype = np.dtype(self._meta.dtype).name
+            buf_shape = meta.shape[: meta.ndim]
+            buf_dtype = np.dtype(meta.dtype).name
             src_str = f"{self._node_path} {buf_shape}, {buf_dtype}"
         else:
             src_str = self._node_path
@@ -81,12 +76,13 @@ class BaseRenderer(pygame.Surface):
         pygame.display.update(text_rect)
         return text_rect
 
-    def update(
-        self,
-        surface: pygame.Surface,
-        data: typing.Optional[typing.Tuple[npt.NDArray, npt.NDArray]],
-    ) -> typing.List[pygame.Rect]:
+    def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         rects = []
+        if not self._mirror.connected:
+            self._mirror.connect()  # Has built-in rate-limiter
+            if self._mirror.connected:
+                self._reset_plot()
+                self._refresh_text = True
         if self._refresh_text:
             rects.append(self._print_node_path(surface))
             self._refresh_text = False
@@ -94,4 +90,5 @@ class BaseRenderer(pygame.Surface):
             # Full-screen render
             rects.append(self._plot_rect)
             self._full_refresh = False
+
         return rects
