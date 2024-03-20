@@ -4,6 +4,8 @@ import typing
 
 import pygame
 
+from ..dag import get_graph, pgv2pd
+
 
 SCROLL_STEP = 50
 
