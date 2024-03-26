@@ -14,7 +14,7 @@ python = ">=3.10,<3.13"
 numpy = "^1.26.4"
 pygraphviz = { version = "*", source = "pypi", optional = true }
 pygame = "^2.5.2"
-ezmsg = {extras = ["sigproc"], version = "^3.3.4"}
+ezmsg = { git = "https://github.com/iscoe/ezmsg.git", branch = "cboulay/working"}
 
 [tool.poetry.scripts]
 ezmsg-monitor = "ezmsg.vis.examples.monitor:main"
