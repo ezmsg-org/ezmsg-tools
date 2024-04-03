@@ -63,7 +63,7 @@ class ShMemCircBuff(ez.Unit):
 
         # And create and fill-in shmem.
         meta_size = ctypes.sizeof(ShmemArrMeta)
-        shmem_size = meta_size + n_frames * np.prod(frame_shape) * msg.data.itemsize
+        shmem_size = int(meta_size + n_frames * np.prod(frame_shape) * msg.data.itemsize)
         try:
             self.STATE.shmem = SharedMemory(
                 name=self.STATE.cur_settings.shmem_name,
