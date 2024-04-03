@@ -2,11 +2,16 @@
 
 A namespace package for [ezmsg](https://github.com/iscoe/ezmsg) to visualize running graphs and data.
 
-## Installation and Run
+## Installation
 
-`pip install "git+ssh://git@bitbucket.org/wysscenter/ezmsg-vis.git[app]"`
+Use `conda` (or `mamba`) and create a new environment with Python. We use `conda` because a dependency (`pygraphviz`) requires compiled dependencies that are not easy to install on Win or Mac.
 
-> TODO: after a public release, use `pip install ezmsg-vis`
+* `mamba create -n ezvis python=3.10`
+* `mamba activate ezvis`
+* `mamba install pygraphviz`
+* `pip install "git+ssh://git@bitbucket.org/wysscenter/ezmsg-vis.git[app]"`
+
+## Usage
 
 After installing, there will be a `ezmsg-monitor` entry point available when the Python environment is active. Call `ezmsg-monitor --help` to see its commandline arguments.
 
@@ -26,13 +31,14 @@ Don't forget to tear down your GraphService when you are done with it:
 
 ## Setup (Development)
 
-`cd` to this directory (`ezmsg-vis`) and run `pip install -e ".[app]"`
-
-> Note: You may need a more recent version of ezmsg that what is on pypi. `pip install git+https://github.com/iscoe/ezmsg@dev`
+* `git clone git@bitbucket.org:wysscenter/ezmsg-vis.git@dev`
+* `cd ezmsg-vis`
+* Do the `mamba` environment steps as above in [Installation](#installation)
+* `pip install -e ".[app]"`
 
 * Modules are available under `import ezmsg.vis`
 * Entry points are in `ezmsg.vis.examples`; `ezmsg.vis.examples.monitor:main` is the main one.
 
 ## Troubleshooting
 
-* Mac users might fail on installing pygraphviz. The simplest solution is to use conda/mamba and install into the environment `conda install graphviz`. Otherwise, [see here](https://github.com/pygraphviz/pygraphviz/issues/398#issuecomment-1038476921).
+* Use conda/mamba and install into the environment `conda install graphviz`. If that fails, [see here](https://github.com/pygraphviz/pygraphviz/issues/398#issuecomment-1038476921).
