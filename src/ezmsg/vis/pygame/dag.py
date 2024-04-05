@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 import tempfile
 import typing
 
@@ -31,13 +32,24 @@ class VisDAG:
         G.draw(img_path)
         self._image = pygame.image.load(img_path)
         self._image_rect = self._image.get_rect(topleft=tl_offset)
-        self._min_y = -(self._image_rect.height - screen_height)
-        # Scale the svg coordinates by png size / svg size
-        _svg = pygame.image.load(svg_path)
-        self._node_df["y"] *= self._image_rect.height / _svg.get_rect().height
-        self._node_df["x"] *= self._image_rect.width / _svg.get_rect().width
+        self._min_y = screen_height - self._image_rect.height
 
-        self._image_y = 0  # Initial position of the image
+        if sys.platform == "win32":
+            # On Windows, it looks like we need to scale the svg coordinates by the window dims.
+            x_scale = self._image_rect.width / (self._node_df["x"].max() + self._node_df["x"].min())
+            y_scale = self._image_rect.height / (self._node_df["y"].max() + self._node_df["y"].min())
+        else:
+            # Scale the coordinates in the dataframe by png size / svg size
+            _svg = pygame.image.load(svg_path)
+            x_scale = self._image_rect.width / _svg.get_rect().width
+            y_scale = self._image_rect.height / _svg.get_rect().height
+
+        self._node_df["y"] *= y_scale
+        self._node_df["x"] *= x_scale
+        # Invert the y coordinates of the image so origin is top-left, like in pygame
+        self._node_df["y"] = self._image_rect.height - self._node_df["y"]
+
+        self._image_y = 0  # Initial offset of the image
         self._b_update = True
 
     @property
@@ -61,10 +73,11 @@ class VisDAG:
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     # Mouse events
                     if event.button == 1:
-                        # Clicked on a node
+                        # Clicked on the screen over the DAG.
+                        # Calculate the position of the click from screen coordinates to DAG coordinates.
                         graph_pos = (
-                            mouse_pos[0],
-                            self._image_rect.height - (mouse_pos[1] - self._image_y),
+                            mouse_pos[0] - self._image_rect.left,
+                            mouse_pos[1] - self._image_rect.top + self._image_y,
                         )
                         min_row = (
                             (self._node_df.x - graph_pos[0]) ** 2

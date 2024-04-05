@@ -15,7 +15,8 @@ PLOT_DUR = 2.0
 
 
 def monitor(
-    graph_ip: str = GRAPH_IP, graph_port: int = GRAPH_PORT, shmem_name: str = SHMEM_NAME
+    graph_addr: str = ":".join((GRAPH_IP, str(GRAPH_PORT))),
+    shmem_name: str = SHMEM_NAME
 ):
     pygame.init()
 
@@ -29,6 +30,8 @@ def monitor(
 
     # Interactive ezmsg graph. Its purpose is to show the graph (w/ scrolling)
     #  and get the name of the node that was clicked on, and we want to visualize.
+    graph_ip, graph_port = graph_addr.split(":")
+    graph_port = int(graph_port)
     dag = VisDAG(screen_height=screen_height, graph_ip=graph_ip, graph_port=graph_port)
 
     # ezmsg process manager -- process runs ezmsg context to attach a node to running pipeline.

@@ -2,6 +2,8 @@
 
 A namespace package for [ezmsg](https://github.com/iscoe/ezmsg) to visualize running graphs and data.
 
+The data visualization is highly fragile. This package is a temporary solution only. It will be replaced ASAP.
+
 ## Installation
 
 Use `conda` (or `mamba`) and create a new environment with Python. We use `conda` because a dependency (`pygraphviz`) requires compiled dependencies that are not easy to install on Win or Mac.
@@ -22,6 +24,8 @@ You must have an ezmsg pipeline running on a graph service exposed on the networ
 Then run a pipeline passing the ip and port to `ez.run`:
 
 `ez.run(..., graph_address=("127.0.0.1", 25978))`
+
+> You can use the supplied overly-simple example: `python -m ezmsg.vis.examples.ez_count`
 
 And then you can connect to that with `ezmsg-monitor --graph-ip 127.0.0.1 --graph-port 25978`
 

@@ -78,6 +78,10 @@ class Sweep(BaseRenderer):
         # Blank the surface
         self.fill(PLOT_BG_COLOR)
         pygame.display.update(self._plot_rect)
+        if meta.ndim > 2:
+            # Monkey-patch udpate func to do nothing
+            print("timeseries does not support > 2 dimensions")
+            self.update = lambda surface: []
 
     def update_with_copy(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         rects = super().update(surface)
