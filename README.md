@@ -27,7 +27,7 @@ Then run a pipeline passing the ip and port to `ez.run`:
 
 > You can use the supplied overly-simple example: `python -m ezmsg.vis.examples.ez_count`
 
-And then you can connect to that with `ezmsg-monitor --graph-ip 127.0.0.1 --graph-port 25978`
+And then you can connect to that with `ezmsg-monitor --graph_addr 127.0.0.1:25978`
 
 Don't forget to tear down your GraphService when you are done with it:
 
