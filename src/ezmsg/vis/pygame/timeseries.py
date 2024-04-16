@@ -81,7 +81,6 @@ class Sweep(BaseRenderer):
         if meta.ndim > 2:
             # Monkey-patch udpate func to do nothing
             print("timeseries does not support > 2 dimensions")
-            self.update = lambda surface: []
 
     def update_with_copy(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         rects = super().update(surface)
@@ -190,6 +189,10 @@ class Sweep(BaseRenderer):
             self._mirror.buffer is not None
             and self._read_index != self._mirror.write_index
         ):
+            meta = self._mirror.meta
+            if meta.ndim > 2:
+                return rects
+
             if self._mirror.write_index < self._read_index:
                 n_samples = self._xvec.shape[0] - self._read_index
             else:

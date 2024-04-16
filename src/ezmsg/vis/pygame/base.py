@@ -2,7 +2,7 @@ import typing
 
 import pygame
 
-from ..mirror import EZShmMirror
+from ezmsg.wyss.shmem.mirror import EZShmMirror
 
 
 PLOT_BG_COLOR = (255, 255, 255)
@@ -19,16 +19,16 @@ class BaseRenderer(pygame.Surface):
 
     def __init__(
         self,
-        shmem_name: str,
+        mirror: EZShmMirror,
         *args,
         tl_offset: typing.Tuple[int, int] = (0, 0),
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self._mirror = EZShmMirror(shmem_name=shmem_name)
-        self._node_path: typing.Optional[str] = None
+        self._mirror = mirror
         self._tl_offset: typing.Tuple[int, int] = tl_offset
         self._plot_rect = self.get_rect(topleft=self._tl_offset)
+        self._node_path: typing.Optional[str] = None
         self._font = pygame.font.Font(None, 36)  # Default font and size 36
         self._refresh_text = True
         self._plot_needs_reset = True
@@ -43,8 +43,10 @@ class BaseRenderer(pygame.Surface):
     def _reset_plot(self):
         raise NotImplementedError
 
-    def reset(self, node_path: typing.Optional[str]) -> None:
-        self._mirror.reset()
+    def reset(
+            self,
+            node_path: typing.Optional[str]
+    ) -> None:
         self.fill(PLOT_BG_COLOR)
         if node_path is not None and node_path != self._node_path:
             self._node_path = node_path
@@ -78,8 +80,9 @@ class BaseRenderer(pygame.Surface):
 
     def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         rects = []
+
         if not self._mirror.connected:
-            self._mirror.connect()  # Has built-in rate-limiter
+            self._mirror._try_connect()  # Only if it has a non-None _shmem_name.
 
         if self._mirror.connected and self._plot_needs_reset:
             self._reset_plot()
