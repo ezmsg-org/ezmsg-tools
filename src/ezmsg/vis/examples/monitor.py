@@ -47,7 +47,7 @@ def monitor(
     #  unit does not exist until EZProcManager starts up.
     #  Other than the shmem, the mirror communicates with
     #  the remote unit via a Pipe. (one end is a Connection object).
-    mirror = EZShmMirror(ez_proc_man.conn)
+    mirror = EZShmMirror()
 
     # Data Plotter. Puts a surface on the screen, plots 2D lines
     #  with some basic auto-scaling. ezmsg-vis renderers are
