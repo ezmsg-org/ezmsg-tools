@@ -15,7 +15,8 @@ numpy = "^1.26.4"
 pygraphviz = { version = "*", source = "pypi", optional = true }
 pandas = { version = "*", source = "pypi", optional = true }
 pygame = "^2.5.2"
-ezmsg = { git = "https://github.com/iscoe/ezmsg.git", branch = "cboulay/working"}
+ezmsg = { git = "https://github.com/iscoe/ezmsg.git", branch = "cboulay/working", extras = ["sigproc", "zmq"]}
+bolt = {git = "ssh://git@bitbucket.org/wysscenter/bolt.git"}
 typer = "^0.12.0"
 
 [tool.poetry.scripts]

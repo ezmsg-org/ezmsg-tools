@@ -5,7 +5,7 @@ import typer
 from ezmsg.vis.pygame.dag import VisDAG
 from ezmsg.vis.pygame.timeseries import Sweep
 from ezmsg.vis.proc import EZProcManager
-from ezmsg.wyss.shmem.mirror import EZShmMirror
+from bolt.utils.shmem_mirror import EZShmMirror
 
 
 GRAPH_IP = "127.0.0.1"

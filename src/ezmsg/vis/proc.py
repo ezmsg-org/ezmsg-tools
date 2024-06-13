@@ -5,15 +5,13 @@ import typing
 
 import ezmsg.core as ez
 
-from ezmsg.wyss.shmem.sink import ShMemCircBuffSettings, ShMemCircBuff
+from bolt.nodes.sinks.shmem import ShMemCircBuff, ShMemCircBuffSettings
 
 
 BUF_DUR = 3.0
 
 
 class EzMonitorProcess(multiprocessing.Process):
-    settings: ShMemCircBuffSettings
-
     def __init__(
         self,
         settings: ShMemCircBuffSettings,
@@ -21,14 +19,16 @@ class EzMonitorProcess(multiprocessing.Process):
         address: typing.Optional[typing.Tuple[str, int]] = None,
     ) -> None:
         super().__init__()
-        self.settings = settings
+        self._settings = settings
         self._topic = topic
         self._graph_address = address
 
     def run(self) -> None:
-        comps = {"VISBUFF": ShMemCircBuff(self.settings)}
+        comps = {
+            "SHMEM": ShMemCircBuff(self._settings)
+        }
         conns = (
-            (self._topic, comps["VISBUFF"].INPUT_SIGNAL),
+            (self._topic, comps["SHMEM"].INPUT_SIGNAL),
         )
         ez.run(
             components=comps,
