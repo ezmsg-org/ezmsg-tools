@@ -48,3 +48,5 @@ Thumbs.db
 *.mov
 *.wmv
 
+.venv/
+src/ezmsg/graphviz/__version__.py

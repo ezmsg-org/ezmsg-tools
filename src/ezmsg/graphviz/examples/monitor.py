@@ -2,10 +2,11 @@ import pygame
 import pygame.locals
 import typer
 
-from ezmsg.vis.pygame.dag import VisDAG
-from ezmsg.vis.pygame.timeseries import Sweep
-from ezmsg.vis.proc import EZProcManager
-from bolt.utils.shmem_mirror import EZShmMirror
+from ezmsg.graphviz.pygame.dag import VisDAG
+from ezmsg.graphviz.pygame.timeseries import Sweep
+from ezmsg.graphviz.proc import EZProcManager
+
+from ezmsg.graphviz.shmem.shmem_mirror import EZShmMirror
 
 
 GRAPH_IP = "127.0.0.1"
@@ -50,7 +51,7 @@ def monitor(
     mirror = EZShmMirror()
 
     # Data Plotter. Puts a surface on the screen, plots 2D lines
-    #  with some basic auto-scaling. ezmsg-vis renderers are
+    #  with some basic auto-scaling. ezmsg-graphviz renderers are
     #  highly customized to use the mirror object as it uses
     #  the mirror's shmem buffer as its own rendering buffer.
     sweep = Sweep(
@@ -80,8 +81,12 @@ def monitor(
             # Clicked on a new node to monitor
             mirror.cleanup()
             ez_proc_man.reset(new_node_path)  # Close subprocess and start a new one.
-            mirror.connect("buff_" + new_node_path)  # "buff_" convention used by EZProcManager
-            sweep.reset(new_node_path)  # Reset renderer. We provide the path just so it can print it.
+            mirror.connect(
+                "buff_" + new_node_path
+            )  # "buff_" convention used by EZProcManager
+            sweep.reset(
+                new_node_path
+            )  # Reset renderer. We provide the path just so it can print it.
 
             # Remaining initialization must wait until subprocess has seen data.
 

@@ -51,7 +51,7 @@ class Sweep(BaseRenderer):
         yrange: float = INIT_Y_RANGE,
         autoscale: bool = True,
         dur: float = PLOT_DUR,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._y_range = yrange

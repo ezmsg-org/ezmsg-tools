@@ -5,7 +5,7 @@ import typing
 
 import ezmsg.core as ez
 
-from bolt.nodes.sinks.shmem import ShMemCircBuff, ShMemCircBuffSettings
+from .shmem.shmem import ShMemCircBuff, ShMemCircBuffSettings
 
 
 BUF_DUR = 3.0
@@ -24,17 +24,9 @@ class EzMonitorProcess(multiprocessing.Process):
         self._graph_address = address
 
     def run(self) -> None:
-        comps = {
-            "SHMEM": ShMemCircBuff(self._settings)
-        }
-        conns = (
-            (self._topic, comps["SHMEM"].INPUT_SIGNAL),
-        )
-        ez.run(
-            components=comps,
-            connections=conns,
-            graph_address=self._graph_address
-        )
+        comps = {"SHMEM": ShMemCircBuff(self._settings)}
+        conns = ((self._topic, comps["SHMEM"].INPUT_SIGNAL),)
+        ez.run(components=comps, connections=conns, graph_address=self._graph_address)
 
 
 class EZProcManager:
@@ -86,7 +78,6 @@ class EZProcManager:
             )
 
     def _init_subprocess(self, axis: str = "time"):
-
         unit_settings = ShMemCircBuffSettings(
             shmem_name="buff_" + self._node_path,
             buf_dur=self._buf_dur,

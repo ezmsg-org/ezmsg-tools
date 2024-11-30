@@ -2,7 +2,7 @@ import typing
 
 import pygame
 
-from bolt.utils.shmem_mirror import EZShmMirror
+from ezmsg.graphviz.shmem.shmem_mirror import EZShmMirror
 
 
 PLOT_BG_COLOR = (255, 255, 255)
@@ -36,17 +36,15 @@ class BaseRenderer(pygame.Surface):
 
     def handle_event(self, event: pygame.event.Event):
         if event.type in [pygame.MOUSEWHEEL, pygame.MOUSEBUTTONDOWN]:
-            mouse_pos = pygame.mouse.get_pos()
+            pass
             # TODO: Check if mouse_pos is over self
+            # mouse_pos = pygame.mouse.get_pos()
             # TODO: Respond to mouse.
 
     def _reset_plot(self):
         raise NotImplementedError
 
-    def reset(
-            self,
-            node_path: typing.Optional[str]
-    ) -> None:
+    def reset(self, node_path: typing.Optional[str]) -> None:
         self.fill(PLOT_BG_COLOR)
         if node_path is not None and node_path != self._node_path:
             self._node_path = node_path

@@ -23,12 +23,12 @@ class VisDAG:
         G = get_graph((graph_ip, graph_port))
         G.layout(prog="dot")
         # Create SVG to get the correct coordinates
-        svg_path = Path(tempfile.gettempdir()) / "ezmsg-vis.svg"
+        svg_path = Path(tempfile.gettempdir()) / "ezmsg-graphviz.svg"
         G.draw(svg_path, format="svg:cairo")
         # Get the graph details as dataframe
         self._node_df = pgv2pd(G)
         # Unfortunately, pygame cannot render svg very well, so we render as png for display
-        img_path = Path(tempfile.gettempdir()) / "ezmsg-vis.png"
+        img_path = Path(tempfile.gettempdir()) / "ezmsg-graphviz.png"
         G.draw(img_path)
         self._image = pygame.image.load(img_path)
         self._image_rect = self._image.get_rect(topleft=tl_offset)
@@ -36,8 +36,12 @@ class VisDAG:
 
         if sys.platform == "win32":
             # On Windows, it looks like we need to scale the svg coordinates by the window dims.
-            x_scale = self._image_rect.width / (self._node_df["x"].max() + self._node_df["x"].min())
-            y_scale = self._image_rect.height / (self._node_df["y"].max() + self._node_df["y"].min())
+            x_scale = self._image_rect.width / (
+                self._node_df["x"].max() + self._node_df["x"].min()
+            )
+            y_scale = self._image_rect.height / (
+                self._node_df["y"].max() + self._node_df["y"].min()
+            )
         else:
             # Scale the coordinates in the dataframe by png size / svg size
             _svg = pygame.image.load(svg_path)

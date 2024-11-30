@@ -1,34 +1,39 @@
-[tool.poetry]
-name = "ezmsg-vis"
-version = "0.1.0"
+[project]
+name = "ezmsg-graphviz"
 description = "ezmsg namespace package to visualize running graphs"
-authors = ["Chadwick Boulay <chad@cbneurotech.com>"]
+authors = [
+  { name = "Chadwick Boulay", email = "chad@cbneurotech.com"}
+]
 readme = "README.md"
-packages = [
-  { include = "ezmsg", from = "src" }
+requires-python = ">=3.10.15"
+dynamic = ["version"]
+dependencies = [
+  "ezmsg>=3.6.0",
+  "numpy>=1.26.0",
+  "pygame>=2.5.2",
+  "pygraphviz",
+  "pandas",
+  "typer>=0.12.0"
 ]
 
-
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-numpy = "^1.26.4"
-pygraphviz = { version = "*", source = "pypi", optional = true }
-pandas = { version = "*", source = "pypi", optional = true }
-pygame = "^2.5.2"
-ezmsg = { git = "https://github.com/iscoe/ezmsg.git", branch = "cboulay/working", extras = ["sigproc", "zmq"]}
-bolt = {git = "ssh://git@bitbucket.org/wysscenter/bolt.git"}
-typer = "^0.12.0"
-
-[tool.poetry.scripts]
-ezmsg-monitor = "ezmsg.vis.examples.monitor:main"
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8.1",
+    "scipy>=1.14.1",
+]
+test = [
+    "pytest>=8.3.3",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
+[tool.hatch.version]
+source = "vcs"
 
-[tool.poetry.extras]
-app = [
-  "pygraphviz",
-  "pandas"
-]
+[tool.hatch.build.hooks.vcs]
+version-file = "src/ezmsg/graphviz/__version__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ezmsg"]

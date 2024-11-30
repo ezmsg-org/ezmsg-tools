@@ -11,8 +11,8 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
     import pygraphviz as pgv
 
     # Create a graphviz object with our graph components as nodes and our connections as edges.
-    G = pgv.AGraph(name="ezmsg-vis", strict=False, directed=True)
-    G.graph_attr["label"] = "ezmsg-vis"
+    G = pgv.AGraph(name="ezmsg-graphviz", strict=False, directed=True)
+    G.graph_attr["label"] = "ezmsg-graphviz"
     G.graph_attr["rankdir"] = "TB"
     # G.graph_attr["outputorder"] = "edgesfirst"
     # G.graph_attr["ratio"] = "1.0"
