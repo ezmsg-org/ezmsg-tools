@@ -11,6 +11,7 @@ import typing
 
 import ezmsg.core as ez
 from ezmsg.util.messages.axisarray import AxisArray
+from ezmsg.util.debuglog import DebugLog
 import numpy as np
 import typer
 
@@ -21,20 +22,29 @@ class CountSettings(ez.Settings):
 
 
 class Count(ez.Unit):
-    SETTINGS: CountSettings
+    SETTINGS = CountSettings
     OUTPUT_SIGNAL = ez.OutputStream(AxisArray)
 
     @ez.publisher(OUTPUT_SIGNAL)
     async def count(self) -> typing.AsyncGenerator:
         count = 0
+        template = AxisArray(
+            data=np.array([[0.0]]),
+            dims=["time", "ch"],
+            axes={
+                "time": AxisArray.TimeAxis(
+                    fs=self.SETTINGS.approx_srate, offset=time.time()
+                )
+            },
+            key="count",
+        )
         while count < self.SETTINGS.iterations:
-            msg = AxisArray(
+            msg = replace(
+                template,
                 data=np.array([[count]]),
-                dims=["time", "ch"],
                 axes={
-                    "time": AxisArray.Axis.TimeAxis(
-                        fs=self.SETTINGS.approx_srate, offset=time.time()
-                    )
+                    **template.axes,
+                    "time": replace(template.axes["time"], offset=time.time()),
                 },
             )
             yield self.OUTPUT_SIGNAL, msg
@@ -42,39 +52,26 @@ class Count(ez.Unit):
             await asyncio.sleep(1 / self.SETTINGS.approx_srate)
 
 
+class SineSettings(ez.Settings):
+    freq: float = 1.0
+
+
 class Sine(ez.Unit):
+    SETTINGS = SineSettings
+
     INPUT_SIGNAL = ez.InputStream(AxisArray)
     OUTPUT_SIGNAL = ez.OutputStream(AxisArray)
 
     @ez.subscriber(INPUT_SIGNAL)
     @ez.publisher(OUTPUT_SIGNAL)
     async def on_message(self, message: AxisArray) -> typing.AsyncGenerator:
+        tvec = message.axes["time"].value(
+            np.arange(message.data.shape[message.get_axis_idx("time")])
+        )[:, None]
         yield (
             self.OUTPUT_SIGNAL,
-            replace(message, data=np.sin(2 * np.pi * 1.0 * message.data)),
+            replace(message, data=np.sin(2 * np.pi * self.SETTINGS.freq * tvec)),
         )
-
-
-class PrintSettings(ez.Settings):
-    iterations: int
-
-
-class PrintState(ez.State):
-    current_iteration: int = 0
-
-
-class PrintValue(ez.Unit):
-    SETTINGS: PrintSettings
-    STATE: PrintState
-    INPUT_SIGNAL = ez.InputStream(AxisArray)
-
-    @ez.subscriber(INPUT_SIGNAL)
-    async def on_message(self, message: AxisArray) -> None:
-        print(f"Current Count: {message.data[0, 0]}")
-
-        self.STATE.current_iteration = self.STATE.current_iteration + 1
-        if self.STATE.current_iteration == self.SETTINGS.iterations:
-            raise ez.NormalTermination
 
 
 def main(
@@ -86,11 +83,11 @@ def main(
     comps = {
         "COUNT": Count(iterations=iterations, approx_srate=approx_srate),
         "SINE": Sine(),
-        "PRINT": PrintValue(iterations=iterations),
+        "LOG": DebugLog(),
     }
     conns = {
         (comps["COUNT"].OUTPUT_SIGNAL, comps["SINE"].INPUT_SIGNAL),
-        (comps["SINE"].OUTPUT_SIGNAL, comps["PRINT"].INPUT_SIGNAL),
+        (comps["COUNT"].OUTPUT_SIGNAL, comps["LOG"].INPUT),
     }
     graph_addr = graph_addr.split(":") if graph_addr is not None else None
     ez.run(components=comps, connections=conns, graph_address=graph_addr)
