@@ -72,7 +72,7 @@ class EZProcManager:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(
-                ez.GraphService(address=self._graph_addr).disconnect(
+                ez.graphserver.GraphService(address=self._graph_addr).disconnect(
                     self._node_path, "VISBUFF/INPUT_SIGNAL"
                 )
             )

@@ -2,11 +2,11 @@ import pygame
 import pygame.locals
 import typer
 
-from ezmsg.graphviz.pygame.dag import VisDAG
-from ezmsg.graphviz.pygame.timeseries import Sweep
-from ezmsg.graphviz.proc import EZProcManager
+from ezmsg.tools.sigmon.pygame.dag import VisDAG
+from ezmsg.tools.sigmon.pygame.timeseries import Sweep
+from ezmsg.tools.proc import EZProcManager
 
-from ezmsg.graphviz.shmem.shmem_mirror import EZShmMirror
+from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
 
 
 GRAPH_IP = "127.0.0.1"
@@ -14,7 +14,7 @@ GRAPH_PORT = 25978
 PLOT_DUR = 2.0
 
 
-def monitor(
+def main(
     graph_addr: str = ":".join((GRAPH_IP, str(GRAPH_PORT))),
 ):
     pygame.init()
@@ -28,7 +28,7 @@ def monitor(
     screen.fill((0, 0, 0))  # Fill the screen with black
 
     # Interactive ezmsg graph. Its purpose is to show the graph (w/ scrolling)
-    #  and get the name of the node that was clicked on, and we want to visualize.
+    #  and get the name of the node that was clicked on and that we want to visualize.
     graph_ip, graph_port = graph_addr.split(":")
     graph_port = int(graph_port)
     dag = VisDAG(screen_height=screen_height, graph_ip=graph_ip, graph_port=graph_port)
@@ -36,18 +36,15 @@ def monitor(
     # ezmsg process manager -- the process runs a mini ezmsg pipeline
     #  that attaches a single node to an existing pipeline. We don't
     #  know the attachment point yet, so we do not start the pipeline.
-    # Note: not required if pipeline with ShMemCircBuff already exists.
     ez_proc_man = EZProcManager(
         graph_ip=graph_ip,
         graph_port=graph_port,
         buf_dur=PLOT_DUR,
     )
 
-    # We need a local mirror to the remote ShMemCircBuff.
-    #  It initializes in a waiting state because the remote
-    #  unit does not exist until EZProcManager starts up.
-    #  Other than the shmem, the mirror communicates with
-    #  the remote unit via a Pipe. (one end is a Connection object).
+    # We need an in-process mirror to the out-of-process ShMemCircBuff
+    #  in `ez_proc_man`. It initializes in a waiting state because the
+    #  remote unit does not exist until EZProcManager starts up.
     mirror = EZShmMirror()
 
     # Data Plotter. Puts a surface on the screen, plots 2D lines
@@ -79,14 +76,8 @@ def monitor(
 
         if new_node_path is not None and new_node_path != ez_proc_man.node_path:
             # Clicked on a new node to monitor
-            mirror.cleanup()
             ez_proc_man.reset(new_node_path)  # Close subprocess and start a new one.
-            mirror.connect(
-                "buff_" + new_node_path
-            )  # "buff_" convention used by EZProcManager
-            sweep.reset(
-                new_node_path
-            )  # Reset renderer. We provide the path just so it can print it.
+            sweep.reset(new_node_path)
 
             # Remaining initialization must wait until subprocess has seen data.
 
@@ -104,9 +95,5 @@ def monitor(
     pygame.quit()
 
 
-def main():
-    typer.run(monitor)
-
-
 if __name__ == "__main__":
-    main()
+    typer.run(main)

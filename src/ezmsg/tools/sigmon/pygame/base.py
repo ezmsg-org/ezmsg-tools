@@ -45,6 +45,7 @@ class BaseRenderer(pygame.Surface):
         raise NotImplementedError
 
     def reset(self, node_path: typing.Optional[str]) -> None:
+        self._mirror.disconnect()
         self.fill(PLOT_BG_COLOR)
         if node_path is not None and node_path != self._node_path:
             self._node_path = node_path
@@ -56,6 +57,8 @@ class BaseRenderer(pygame.Surface):
         #  TEMP: Render the node_path
         meta = self._mirror.meta
         if meta is not None:
+            self._mirror.connect("buff_" + self._node_path)
+
             import numpy as np
 
             buf_shape = meta.shape[: meta.ndim]
@@ -79,8 +82,8 @@ class BaseRenderer(pygame.Surface):
     def update(self, surface: pygame.Surface) -> typing.List[pygame.Rect]:
         rects = []
 
-        if not self._mirror.connected:
-            self._mirror._try_connect()  # Only if it has a non-None _shmem_name.
+        if not self._mirror.connected and self._node_path is not None:
+            self._mirror.connect("buff_" + self._node_path)
 
         if self._mirror.connected and self._plot_needs_reset:
             self._reset_plot()

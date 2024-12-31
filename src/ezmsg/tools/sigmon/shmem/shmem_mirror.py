@@ -39,6 +39,9 @@ class EZShmMirror:
         self.connect(shmem_name)
 
     def __del__(self):
+        self.disconnect()
+
+    def disconnect(self):
         self._cleanup_buffer()
         self._cleanup_meta()
         self._shmem_name = None
@@ -123,7 +126,7 @@ class EZShmMirror:
 
         try:
             buff_name = (
-                self._shmem_name
+                self._shmem_name[:22]
                 + "/buffer"
                 + str(self._mirror_state.meta_struct.buffer_generation)
             )

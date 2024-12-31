@@ -49,4 +49,4 @@ Thumbs.db
 *.wmv
 
 .venv/
-src/ezmsg/graphviz/__version__.py
+src/ezmsg/tools/__version__.py

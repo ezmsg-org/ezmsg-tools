@@ -340,7 +340,7 @@ class ShMemCircBuff(ez.Unit):
         msg_dtype, msg_srate, n_frames, frame_shape = self._get_msg_meta(msg)
         buff_size = int(n_frames * np.prod(frame_shape) * msg.data.itemsize)
         buff_shm_name = (
-            self.SETTINGS.shmem_name
+            self.SETTINGS.shmem_name[:22]
             + "/buffer"
             + str(self.STATE.meta_struct.buffer_generation)
         )

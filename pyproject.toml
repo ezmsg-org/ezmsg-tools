@@ -1,6 +1,6 @@
 [project]
-name = "ezmsg-graphviz"
-description = "ezmsg namespace package to visualize running graphs"
+name = "ezmsg-tools"
+description = "ezmsg namespace package containing tools for working with ezmsg graphs."
 authors = [
   { name = "Chadwick Boulay", email = "chad@cbneurotech.com"}
 ]
@@ -10,20 +10,36 @@ dynamic = ["version"]
 dependencies = [
   "ezmsg>=3.6.0",
   "numpy>=1.26.0",
-  "pygame>=2.5.2",
-  "pygraphviz",
-  "pandas",
-  "typer>=0.12.0"
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8.1",
     "scipy>=1.14.1",
+    "ezmsg-sigproc>=1.6.0",
 ]
 test = [
+    "ezmsg-sigproc>=1.6.0",
     "pytest>=8.3.3",
 ]
+perfmon = [
+    "dash-extensions>=1.0.19",
+    "dash>=2.18.2",
+    "pandas>=2.2.3",
+    "plotly>=5.24.1",
+    "pygraphviz>=1.14",
+    "typer>=0.15.1",
+    "pygtail>=0.14.0",
+]
+sigmon = [
+    "pygame>=2.6.1",
+    "pygraphviz>=1.14",
+    "typer>=0.15.1",
+]
+
+[project.scripts]
+ezmsg-performance-monitor = "ezmsg.tools.perfmon.main:main"
+ezmsg-signal-monitor = "ezmsg.tools.sigmon.main:main"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -33,7 +49,7 @@ build-backend = "hatchling.build"
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/ezmsg/graphviz/__version__.py"
+version-file = "src/ezmsg/tools/__version__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ezmsg"]

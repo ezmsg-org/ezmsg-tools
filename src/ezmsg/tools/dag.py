@@ -27,7 +27,9 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
     # Get the dag from the GraphService
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    dag = loop.run_until_complete(ez.GraphService(address=graph_address).dag())
+    dag = loop.run_until_complete(
+        ez.graphserver.GraphService(address=graph_address).dag()
+    )
 
     # Retrieve a description of the graph
     graph_connections = dag.graph.copy()
@@ -42,15 +44,15 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
         if "VISBUFF/INPUT_SIGNAL" in v:
             b_refresh_dag = True
             loop.run_until_complete(
-                ez.GraphService(address=graph_address).disconnect(
+                ez.graphserver.GraphService(address=graph_address).disconnect(
                     k, "VISBUFF/INPUT_SIGNAL"
                 )
             )
     if b_refresh_dag:
-        dag = loop.run_until_complete(ez.GraphService(address=graph_address).dag())
+        dag = loop.run_until_complete(ez.graphserver.GraphService(address=graph_address).dag())
         graph_connections = dag.graph.copy()
 
-    # Let's come up with UUID node names
+    # Generate UUID node names
     node_map = {name: f'"{str(uuid4())}"' for name in set(graph_connections.keys())}
 
     for node, conns in graph_connections.items():
@@ -110,3 +112,37 @@ def pgv2pd(g: "pygraphviz.AGraph") -> pd.DataFrame:
             }
         )
     return pd.DataFrame(nodes)
+
+
+async def crawl_coro(graph_address: tuple):
+    graph_service = ez.graphserver.GraphService(address=graph_address)
+    dag: ez.dag.DAG = await graph_service.dag()
+    graph_connections = dag.graph.copy()
+
+    # Construct the graph
+    def tree():
+        return defaultdict(tree)
+
+    graph: defaultdict = tree()
+
+    for node, conns in graph_connections.items():
+        subgraph = graph
+        path = node.split("/")
+        route = path[:-1]
+        stream = path[-1]
+        for seg in route:
+            subgraph = subgraph[seg]
+        subgraph[stream] = node
+
+    def recurse_get_unit_topics(g: defaultdict) -> list:
+        out = []
+        sub_graphs = [v for k, v in g.items() if isinstance(v, defaultdict)]
+        if len(sub_graphs):
+            for sub_graph in sub_graphs:
+                out += recurse_get_unit_topics(sub_graph)
+        else:
+            out.extend(list(g.values()))
+        return out
+
+    unit_topics = recurse_get_unit_topics(graph)
+    return unit_topics
