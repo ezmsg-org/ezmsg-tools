@@ -30,6 +30,7 @@ perfmon = [
     "pygraphviz>=1.14",
     "typer>=0.15.1",
     "pygtail>=0.14.0",
+    "dash-bootstrap-components>=1.6.0",
 ]
 sigmon = [
     "pygame>=2.6.1",

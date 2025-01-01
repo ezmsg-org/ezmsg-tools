@@ -148,6 +148,18 @@ wheels = [
 ]
 
 [[package]]
+name = "dash-bootstrap-components"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dash" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a6/1e/59da44351adaaa2a747eb00993c498cadbe0f642b44ced7e7aabf368eaf6/dash_bootstrap_components-1.6.0.tar.gz", hash = "sha256:960a1ec9397574792f49a8241024fa3cecde0f5930c971a3fc81f016cbeb1095", size = 146828 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/72/dda12d6c6a9a2901f5549cea05c7f180e89dee6fb8c5f5f037ce7101ba24/dash_bootstrap_components-1.6.0-py3-none-any.whl", hash = "sha256:97f0f47b38363f18863e1b247462229266ce12e1e171cfb34d3c9898e6e5cd1e", size = 222526 },
+]
+
+[[package]]
 name = "dash-core-components"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -250,7 +262,7 @@ wheels = [
 
 [[package]]
 name = "ezmsg-tools"
-version = "0.1.dev33+g4c9c8ed.d20241230"
+version = "0.1.dev35+g48ac1fc.d20241231"
 source = { editable = "." }
 dependencies = [
     { name = "ezmsg" },
@@ -265,6 +277,7 @@ dev = [
 ]
 perfmon = [
     { name = "dash" },
+    { name = "dash-bootstrap-components" },
     { name = "dash-extensions" },
     { name = "pandas" },
     { name = "plotly" },
@@ -285,6 +298,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "dash", marker = "extra == 'perfmon'", specifier = ">=2.18.2" },
+    { name = "dash-bootstrap-components", marker = "extra == 'perfmon'", specifier = ">=1.6.0" },
     { name = "dash-extensions", marker = "extra == 'perfmon'", specifier = ">=1.0.19" },
     { name = "ezmsg", specifier = ">=3.6.0" },
     { name = "ezmsg-sigproc", marker = "extra == 'dev'", specifier = ">=1.6.0" },
