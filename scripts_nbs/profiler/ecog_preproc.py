@@ -17,7 +17,8 @@ def main(
     srate: float = 2000.0,
     n_ch: int = 128,
     graph_addr: str = "127.0.0.1:25978",
-    run_duration: float = 600.0
+    run_duration: float = 600.0,
+    use_wavelets: bool = True,
 ):
     chunks_per_sec = 50
     n_time = int(srate / chunks_per_sec)
@@ -25,27 +26,29 @@ def main(
     total_chunks = int(run_duration * chunks_per_sec)
     if graph_addr is not None:
         graph_addr = graph_addr.split(":")
+    if use_wavelets:
+        freq_node = CWT(
+            frequencies=np.geomspace(10, 200, num=20),
+            wavelet="morl",
+            min_phase=MinPhaseMode.HOMOMORPHIC,
+            axis="time",
+        )
+    else:
+        freq_node = BandPower(
+            bands=((18, 30), (70, 170)),
+            spectrogram_settings=SpectrogramSettings(
+                window_dur=0.5,
+                window_shift=1/chunks_per_sec,
+                window_anchor=Anchor.END,
+            )
+        )
     comps = {
         "ECOG": EEGSynth(fs=srate, n_time=n_time, n_ch=n_ch),
         "SELECT": Slicer(axis="ch", selection="2:"),
         "LP": ButterworthFilter(axis="time", coef_type="sos", order=4, cutoff=srate/8),
         "DS": Downsample(axis="time", target_rate=srate/4),
         "CAR": CommonRereference(axis="ch"),
-        # "FREQ": BandPower(
-        #     bands=((18, 30), (70, 170)),
-        #     spectrogram_settings=SpectrogramSettings(
-        #         window_dur=0.5,
-        #         # window_shift=None,
-        #         window_shift=1/chunks_per_sec,
-        #         window_anchor=Anchor.END,
-        #     )
-        # ),
-        "FREQ": CWT(
-            frequencies=np.geomspace(10, 200, num=20),
-            wavelet="morl",
-            min_phase=MinPhaseMode.HOMOMORPHIC,
-            axis="time",
-        ),
+        "FREQ": freq_node,
         "ZSCORE": AdaptiveStandardScaler(axis="time", time_constant=20.0),
         "TERM": TerminateOnTotal(total=total_chunks),
     }
