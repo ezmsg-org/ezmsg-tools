@@ -55,6 +55,7 @@ dag = dbc.Col(
 
 table_summary = dbc.Col([
     dbc.Row(dash.dcc.Graph(id="hist-graph", style={"width": "100%"})),
+    dbc.Row(dash.html.Div("Sum:", id="proc-sum", style={"width": "100%"})),
     dbc.Row(dash.dash_table.DataTable(
         id="table",
         data=[],
@@ -236,6 +237,7 @@ def update_table(data, page_current, page_size):
 
 @dash.callback(
     dash.Output("hist-graph", "figure"),
+    dash.Output("proc-sum", "children"),
     dash.Input("df-store", "data"),
     prevent_initial_call=True,
     memoize=True,
@@ -260,7 +262,8 @@ def update_hist(data):
         template="plotly_dark"
     )
     fig.layout.coloraxis.colorbar.title = None
-    return fig
+    proc_sum = topic_means["Elapsed"].sum()
+    return fig, f'Sum: {proc_sum:.2f} ms'
 
 
 if __name__ == '__main__':
