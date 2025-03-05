@@ -235,14 +235,14 @@ wheels = [
 
 [[package]]
 name = "ezmsg"
-version = "3.6.0"
+version = "3.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/11/fa/b4dffddc08f608f5d69de7692a5c56a6f82c4f8cd0555628fe3627344d6e/ezmsg-3.6.0.tar.gz", hash = "sha256:978d8c8934fbda9feb236e1409d47d99c0631cd3e886469ceab6180f0fe3630a", size = 141506 }
+sdist = { url = "https://files.pythonhosted.org/packages/21/5d/3c1940cf4a8e8df7bd1b2582625eb0956973420f43f25ed44f4704786e78/ezmsg-3.6.1.tar.gz", hash = "sha256:c0488bea6f019c5bf1c0560957bff43c17c15ea33b759aaeb26a4c6628690ba6", size = 142634 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/22/02a78c0dd48a44ba4a57394d0917e1fe1223f5f1c81b93c5d3c9d9c9f6bf/ezmsg-3.6.0-py3-none-any.whl", hash = "sha256:adda57e28018474fdd601874d04a1a3e598422190f8ce31449b8c75525f1236d", size = 69895 },
+    { url = "https://files.pythonhosted.org/packages/13/3b/da01f380ac231baea89f466c070bec8f2291c58d74d602b2f36c99fb4505/ezmsg-3.6.1-py3-none-any.whl", hash = "sha256:b4b991d4dfb91f99e676ac0610767421aab84062366caa4755fe1fb2dabd7da1", size = 71018 },
 ]
 
 [[package]]
@@ -262,7 +262,7 @@ wheels = [
 
 [[package]]
 name = "ezmsg-tools"
-version = "0.1.dev35+g48ac1fc.d20241231"
+version = "0.1.dev36+g9661c74.d20250305"
 source = { editable = "." }
 dependencies = [
     { name = "ezmsg" },
@@ -300,7 +300,7 @@ requires-dist = [
     { name = "dash", marker = "extra == 'perfmon'", specifier = ">=2.18.2" },
     { name = "dash-bootstrap-components", marker = "extra == 'perfmon'", specifier = ">=1.6.0" },
     { name = "dash-extensions", marker = "extra == 'perfmon'", specifier = ">=1.0.19" },
-    { name = "ezmsg", specifier = ">=3.6.0" },
+    { name = "ezmsg", specifier = "==3.6.1" },
     { name = "ezmsg-sigproc", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "ezmsg-sigproc", marker = "extra == 'test'", specifier = ">=1.6.0" },
     { name = "numpy", specifier = ">=1.26.0" },
