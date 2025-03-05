@@ -8,6 +8,7 @@ readme = "README.md"
 requires-python = ">=3.10.15"
 dynamic = ["version"]
 dependencies = [
+  "ezmsg-sigproc>=1.8.1",
   "ezmsg>=3.6.1",
   "numpy>=1.26.0",
 ]
@@ -27,10 +28,10 @@ perfmon = [
     "dash>=2.18.2",
     "pandas>=2.2.3",
     "plotly>=5.24.1",
-    "pygraphviz>=1.14",
     "typer>=0.15.1",
     "pygtail>=0.14.0",
     "dash-bootstrap-components>=1.6.0",
+    "ezmsg-sigproc>=1.8.1",
 ]
 sigmon = [
     "pygame>=2.6.1",
