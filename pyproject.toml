@@ -16,7 +16,7 @@ dependencies = [
 dev = [
     "ruff>=0.8.1",
     "scipy>=1.14.1",
-    "ezmsg-sigproc>=1.6.0",
+    "ezmsg-sigproc>=1.8.1",
 ]
 test = [
     "ezmsg-sigproc>=1.6.0",

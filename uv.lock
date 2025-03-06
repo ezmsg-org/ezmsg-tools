@@ -264,7 +264,7 @@ wheels = [
 
 [[package]]
 name = "ezmsg-tools"
-version = "0.1.dev42+g12923ea.d20250305"
+version = "0.1.dev43+g6ffea5b.d20250306"
 source = { editable = "." }
 dependencies = [
     { name = "ezmsg" },
@@ -303,7 +303,7 @@ requires-dist = [
     { name = "dash-bootstrap-components", marker = "extra == 'perfmon'", specifier = ">=1.6.0" },
     { name = "dash-extensions", marker = "extra == 'perfmon'", specifier = ">=1.0.19" },
     { name = "ezmsg", specifier = ">=3.6.1" },
-    { name = "ezmsg-sigproc", marker = "extra == 'dev'", specifier = ">=1.6.0" },
+    { name = "ezmsg-sigproc", marker = "extra == 'dev'", specifier = ">=1.8.1" },
     { name = "ezmsg-sigproc", marker = "extra == 'perfmon'", specifier = ">=1.8.1" },
     { name = "ezmsg-sigproc", marker = "extra == 'test'", specifier = ">=1.6.0" },
     { name = "numpy", specifier = ">=1.26.0" },
