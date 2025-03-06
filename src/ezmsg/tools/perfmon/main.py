@@ -136,6 +136,15 @@ def load_once(
     tail = pygtail.Pygtail(logger_path)
     tail.read_from_end = True
     tail.update_offset_file()
+    # Trim any rows with headers
+    b_bad = df["Time"].astype(str) == "Time"
+    if b_bad.any():
+        df = df[~b_bad]
+        # Reinterpret the columns:
+        # Time (datetime64), Source (obj), Topic (obj), SampleTime (float64), PerfCounter (float64), Elapsed (float64)
+        df["Time"] = pd.to_datetime(df["Time"])
+        for col in ["SampleTime", "PerfCounter", "Elapsed"]:
+            df[col] = pd.to_numeric(df[col])
     # Trim dataframe to only include the last history_sec of data.
     df = _trim_df(df, history_sec=10.0)  # TODO: Get history_sec from widget
     last_dt = df["Time"].iloc[-1]
