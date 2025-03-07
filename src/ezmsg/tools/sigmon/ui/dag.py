@@ -4,6 +4,7 @@ import tempfile
 import typing
 
 import pygame
+import pygame.event
 
 from ...dag import get_graph, pgv2pd
 
