@@ -1,17 +1,24 @@
 """
 It is possible to move data from ezmsg to non-ezmsg processes using shared memory. This module contains the ezmsg half
-of that communication. The other half is in the bolt.utils.shmem_mirror module.
-The same `shmem_name` must be passed to both the ShMemCircBuff and the EZShmMirror objects.
+of that communication. The non-ezmsg half is in the .shmem_mirror module.
+The same `shmem_name` must be passed to both the ShMemCircBuff and the EZShmMirror objects!
 
 The ShMemCircBuff class is a sink node that receives AxisArray messages and writes them to a shared memory buffer.
+
 Upon initialization, or upon receiving updated settings with a different shmem_name value, the node creates a shared
-memory object located at {shmem_name} to hold the metadata; at this point it is initialized with placeholder values
-(e.g., fs = -1).
-Upon receiving a data message with metadata not-matching the metadata in the shared memory object, the node (re-)creates
-another shared memory buffer to hold the data, located at f"{shmem_name}/buffer".
+memory object located at {shorten_shmem_name(shmem_name)} to hold the metadata initialized with placeholder values
+(e.g., srate = -1).
+Additionally, the node has a convenience handle to the metadata via
+`self.STATE.meta_struct = ShmemArrMeta.from_buffer(shmem.buf)`.
+
+Upon receiving a data message, its metadata is checked, and if it does not match the shmem metadata
+ (which will always be true for the first message) then the node first updates the metadata, then it (re-)creates
+ a shared memory buffer to hold the data, located at shorten_shmem_name(f"{shmem_name}/buffer{buffer_generation}"),
+ where `buffer_generation` is an integer that tracks how many times the buffer has been reset. This corresponds to the
+ same integer stored in the metadata.
 
 The other half must monitor the metadata shared memory to see if it changes, and if it does then it must recreate
-the data shared memory buffer.
+the data shared memory buffer reader at the new location.
 """
 
 import asyncio
@@ -259,8 +266,9 @@ class ShMemCircBuff(ez.Unit):
 
         # Create the metadata shared memory object.
         meta_size = int(ctypes.sizeof(ShmemArrMeta))
+        short_name = shorten_shmem_name(self.SETTINGS.shmem_name)
         self.STATE.meta_shmem = _persist_create_shmem(
-            self.SETTINGS.shmem_name, meta_size
+            short_name, meta_size
         )
 
         if self.SETTINGS.shmem_name is None:
@@ -368,7 +376,8 @@ class ShMemCircBuff(ez.Unit):
             + "/buffer"
             + str(self.STATE.meta_struct.buffer_generation)
         )
-        self.STATE.buffer_shmem = _persist_create_shmem(buff_shm_name, buff_size)
+        short_name = shorten_shmem_name(buff_shm_name)
+        self.STATE.buffer_shmem = _persist_create_shmem(short_name, buff_size)
         self.STATE.buffer_arr = np.ndarray(
             self.STATE.meta_struct.shape[: self.STATE.meta_struct.ndim],
             dtype=np.dtype(self.STATE.meta_struct.dtype.decode("utf8")),

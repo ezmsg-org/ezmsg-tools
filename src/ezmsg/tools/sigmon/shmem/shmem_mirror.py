@@ -1,7 +1,7 @@
 """
 It is possible to move data from ezmsg to non-ezmsg processes using shared memory. This module contains the non-ezmsg
-half of that communication. The ezmsg half is found in bolt.nodes.sinks.shmem.
-The same `shmem_name` must be passed to both the ShMemCircBuff and the EZShmMirror objects.
+half of that communication. The ezmsg half is found in .shmem.
+The same `shmem_name` must be passed to both the ShMemCircBuff and the EZShmMirror objects!
 """
 
 import copy
@@ -20,10 +20,10 @@ CONNECT_RETRY_INTERVAL = 0.5
 class EZShmMirror:
     """
     An object that has a local (in-client-process) representation of the shared memory from
-    another process' bolt.nodes.sinks.shmem.ShMemCircBuff Unit.
+    another process' .shmem.ShMemCircBuff Unit.
 
     There are 2 pieces of shared memory: the metadata and the data buffer.
-    The bolt node is responsible for creating both pieces. Here we only connect to them.
+    The ezmsg node is responsible for creating both pieces. Here we only connect to them.
     We cannot know if the shared memory exists before we try to connect to it, so we
     must try the connection -- sometimes repeatedly while handling connection errors.
     """
@@ -103,7 +103,8 @@ class EZShmMirror:
     def _connect_meta(self):
         # Attempt to connect to the meta shmem
         try:
-            self._mirror_state.meta_shmem = SharedMemory(self._shmem_name, create=False)
+            short_name = shorten_shmem_name(self._shmem_name)
+            self._mirror_state.meta_shmem = SharedMemory(short_name, create=False)
             self._mirror_state.meta_struct = ShmemArrMeta.from_buffer(
                 self._mirror_state.meta_shmem.buf
             )
@@ -126,11 +127,12 @@ class EZShmMirror:
 
         try:
             buff_name = (
-                self._shmem_name[:22]
+                self._shmem_name
                 + "/buffer"
                 + str(self._mirror_state.meta_struct.buffer_generation)
             )
-            self._mirror_state.buffer_shmem = SharedMemory(buff_name, create=False)
+            short_name = shorten_shmem_name(buff_name)
+            self._mirror_state.buffer_shmem = SharedMemory(short_name, create=False)
             self._mirror_state.buffer_arr = np.ndarray(
                 self._mirror_state.meta_struct.shape[
                     : self._mirror_state.meta_struct.ndim
