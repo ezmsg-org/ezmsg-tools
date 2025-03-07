@@ -15,8 +15,8 @@ from ezmsg.util.messagelogger import MessageLogger
 from ezmsg.util.messagecodec import message_log
 from ezmsg.util.terminate import TerminateOnTotal
 
-from ezmsg.tools.shmem.shmem import ShMemCircBuff
-from ezmsg.tools.shmem.shmem_mirror import EZShmMirror
+from ezmsg.tools.sigmon.shmem.shmem import ShMemCircBuff
+from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
 
 
 class CrazyUnitSettings(ez.Settings):
@@ -89,9 +89,9 @@ def app(file_path) -> None:
     conns = (
         (comps["CLOCK"].OUTPUT_CLOCK, comps["SYNTH"].INPUT_CLOCK),
         (comps["SYNTH"].OUTPUT_SIGNAL, comps["CRAZY"].INPUT_SIGNAL),
+        (comps["CRAZY"].OUTPUT_SIGNAL, comps["SINK"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["LOGGER"].INPUT_MESSAGE),
         (comps["LOGGER"].OUTPUT_MESSAGE, comps["TERM"].INPUT_MESSAGE),
-        (comps["CRAZY"].OUTPUT_SIGNAL, comps["SINK"].INPUT_SIGNAL),
     )
     ez.run(components=comps, connections=conns)
 
@@ -128,6 +128,8 @@ def test_shmem_mirror_switch_buffer():
     mirror = EZShmMirror()
     mirror.connect(SHMEM_NAME)
 
+    # Start a pipeline with a data stream sinking to a ShMemCircBuff.
+    #  Note that ShMemCircBuff automatically hashes the name to guarantee < 20 character shmem filenames.
     app_thread = threading.Thread(target=app, args=(file_path,))
     app_thread.start()
 

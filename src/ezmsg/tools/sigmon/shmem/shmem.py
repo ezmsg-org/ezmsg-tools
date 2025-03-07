@@ -15,7 +15,9 @@ the data shared memory buffer.
 """
 
 import asyncio
+import base64
 import ctypes
+import hashlib
 import multiprocessing.connection
 import time
 import typing
@@ -35,6 +37,28 @@ def to_bytes(data: typing.Any) -> bytes:
         return data.to_bytes(2, byteorder=BYTEORDER, signed=False)
     elif isinstance(data, int):
         return np.int64(data).to_bytes(UINT64_SIZE, BYTEORDER, signed=False)
+
+
+def shorten_shmem_name(long_name: str) -> str:
+    """
+    Convert a potentially long shared memory name to a shorter, fixed-length name.
+
+    Args:
+        long_name: The original, potentially long shared memory name
+
+    Returns:
+        A shortened, deterministic name suitable for shared memory
+    """
+    if long_name is None:
+        return None
+
+    # Create a hash of the original name
+    hash_obj = hashlib.sha256(long_name.encode('utf-8'))
+    # Convert to URL-safe base64 and limit to 20 characters (plus 'sm_' prefix)
+    # The 'sm_' prefix helps identify this as a shared memory name
+    short_name = 'sm_' + base64.urlsafe_b64encode(hash_obj.digest()).decode('ascii')[:20]
+
+    return short_name
 
 
 MAXKEYLEN = 1024
@@ -340,7 +364,7 @@ class ShMemCircBuff(ez.Unit):
         msg_dtype, msg_srate, n_frames, frame_shape = self._get_msg_meta(msg)
         buff_size = int(n_frames * np.prod(frame_shape) * msg.data.itemsize)
         buff_shm_name = (
-            self.SETTINGS.shmem_name[:22]
+            self.SETTINGS.shmem_name
             + "/buffer"
             + str(self.STATE.meta_struct.buffer_generation)
         )

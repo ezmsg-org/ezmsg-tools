@@ -12,7 +12,7 @@ from multiprocessing.shared_memory import SharedMemory
 import numpy as np
 import numpy.typing as npt
 
-from .shmem import ShmemArrMeta, ShMemCircBuffState
+from .shmem import ShmemArrMeta, ShMemCircBuffState, shorten_shmem_name
 
 CONNECT_RETRY_INTERVAL = 0.5
 
