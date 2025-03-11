@@ -2,11 +2,11 @@ import pygame
 import pygame.locals
 import typer
 
-from .ui.dag import VisDAG
-from .ui.timeseries import Sweep
-from ..proc import EZProcManager
+from ezmsg.tools.sigmon.ui.dag import VisDAG
+from ezmsg.tools.sigmon.ui.timeseries import Sweep
+from ezmsg.tools.proc import EZProcManager
 
-from ..shmem.shmem_mirror import EZShmMirror
+from ezmsg.tools.shmem.shmem_mirror import EZShmMirror
 
 
 GRAPH_IP = "127.0.0.1"
