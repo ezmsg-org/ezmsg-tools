@@ -38,15 +38,17 @@ def main(
             bands=((18, 30), (70, 170)),
             spectrogram_settings=SpectrogramSettings(
                 window_dur=0.5,
-                window_shift=1/chunks_per_sec,
+                window_shift=1 / chunks_per_sec,
                 window_anchor=Anchor.END,
-            )
+            ),
         )
     comps = {
         "ECOG": EEGSynth(fs=srate, n_time=n_time, n_ch=n_ch),
         "SELECT": Slicer(axis="ch", selection="2:"),
-        "LP": ButterworthFilter(axis="time", coef_type="sos", order=4, cutoff=srate/8),
-        "DS": Downsample(axis="time", target_rate=srate/4),
+        "LP": ButterworthFilter(
+            axis="time", coef_type="sos", order=4, cutoff=srate / 8
+        ),
+        "DS": Downsample(axis="time", target_rate=srate / 4),
         "CAR": CommonRereference(axis="ch"),
         "FREQ": freq_node,
         "ZSCORE": AdaptiveStandardScaler(axis="time", time_constant=20.0),
@@ -61,11 +63,7 @@ def main(
         (comps["FREQ"].OUTPUT_SIGNAL, comps["ZSCORE"].INPUT_SIGNAL),
         (comps["ZSCORE"].OUTPUT_SIGNAL, comps["TERM"].INPUT_MESSAGE),
     }
-    ez.run(
-        components=comps,
-        connections=conns,
-        # graph_address=graph_addr
-    )
+    ez.run(components=comps, connections=conns, graph_address=graph_addr)
 
 
 if __name__ == "__main__":

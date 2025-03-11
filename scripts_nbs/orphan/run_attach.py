@@ -35,7 +35,7 @@ def main(
     graph_addr = graph_addr.split(":")
     graph_addr = (graph_addr[0], int(graph_addr[1]))
 
-    graph_service =  ezmsg.core.graphserver.GraphService(graph_addr)
+    graph_service = ezmsg.core.graphserver.GraphService(graph_addr)
     shm_service = ezmsg.core.shmserver.SHMService()
 
     with new_threaded_event_loop(ev=None) as loop:
@@ -49,13 +49,17 @@ def main(
             DefaultBackendProcess,
             False,
         )
+
         async def create_graph_context() -> ez.GraphContext:
             return await ez.GraphContext(graph_service, shm_service).__aenter__()
+
         graph_context = asyncio.run_coroutine_threadsafe(
             create_graph_context(), loop
         ).result()
+
         async def cleanup_graph() -> None:
             await graph_context.__aexit__(None, None, None)
+
         async def setup_graph() -> None:
             for edge in execution_context.connections:
                 await graph_context.connect(*edge)

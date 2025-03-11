@@ -49,7 +49,9 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
                 )
             )
     if b_refresh_dag:
-        dag = loop.run_until_complete(ez.graphserver.GraphService(address=graph_address).dag())
+        dag = loop.run_until_complete(
+            ez.graphserver.GraphService(address=graph_address).dag()
+        )
         graph_connections = dag.graph.copy()
 
     # Generate UUID node names

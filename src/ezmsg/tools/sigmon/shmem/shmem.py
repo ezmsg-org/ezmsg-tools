@@ -60,10 +60,12 @@ def shorten_shmem_name(long_name: str) -> str:
         return None
 
     # Create a hash of the original name
-    hash_obj = hashlib.sha256(long_name.encode('utf-8'))
+    hash_obj = hashlib.sha256(long_name.encode("utf-8"))
     # Convert to URL-safe base64 and limit to 20 characters (plus 'sm_' prefix)
     # The 'sm_' prefix helps identify this as a shared memory name
-    short_name = 'sm_' + base64.urlsafe_b64encode(hash_obj.digest()).decode('ascii')[:20]
+    short_name = (
+        "sm_" + base64.urlsafe_b64encode(hash_obj.digest()).decode("ascii")[:20]
+    )
 
     return short_name
 
@@ -267,9 +269,7 @@ class ShMemCircBuff(ez.Unit):
         # Create the metadata shared memory object.
         meta_size = int(ctypes.sizeof(ShmemArrMeta))
         short_name = shorten_shmem_name(self.SETTINGS.shmem_name)
-        self.STATE.meta_shmem = _persist_create_shmem(
-            short_name, meta_size
-        )
+        self.STATE.meta_shmem = _persist_create_shmem(short_name, meta_size)
 
         if self.SETTINGS.shmem_name is None:
             # If the name is None, then we need to get the name from the shared memory object.

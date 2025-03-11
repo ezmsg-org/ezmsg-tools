@@ -45,14 +45,24 @@ class CrazyUnit(ez.Unit):
                 message = replace(
                     message,
                     data=message.data[:, :-1],
-                    axes={**message.axes, "ch": replace(message.axes["ch"], data=message.axes["ch"].data[:-1])},
+                    axes={
+                        **message.axes,
+                        "ch": replace(
+                            message.axes["ch"], data=message.axes["ch"].data[:-1]
+                        ),
+                    },
                 )
             elif self.SETTINGS.change_type == "irregular":
                 # Convert the time axis to a coordinate axis, implying the signal is irregular (no fs).
                 tvec = message.axes["time"].value(np.arange(message.data.shape[0]))
                 message = replace(
                     message,
-                    axes={**message.axes, "time": AxisArray.CoordinateAxis(data=tvec, dims=["time"], unit="s")},
+                    axes={
+                        **message.axes,
+                        "time": AxisArray.CoordinateAxis(
+                            data=tvec, dims=["time"], unit="s"
+                        ),
+                    },
                 )
             elif self.SETTINGS.change_type == "dtype":
                 # Change the data type to float16.
@@ -80,7 +90,9 @@ def app(file_path) -> None:
 
     comps = {
         "CLOCK": Clock(dispatch_rate=chunk_rate),
-        "SYNTH": Oscillator(n_time=chunk_size, fs=SR, n_ch=CHANNEL_COUNT, dispatch_rate="ext_clock"),
+        "SYNTH": Oscillator(
+            n_time=chunk_size, fs=SR, n_ch=CHANNEL_COUNT, dispatch_rate="ext_clock"
+        ),
         "CRAZY": CrazyUnit(change_after=n_messages // 2, change_type=change_type),
         "SINK": ShMemCircBuff(SHMEM_NAME, 2.0, conn=None, axis="time"),
         "LOGGER": MessageLogger(output=file_path),
@@ -154,7 +166,9 @@ def test_shmem_mirror_switch_buffer():
     dt0 = messages[0].data.dtype
     switch_idx = np.where(~np.array([_.data.dtype == dt0 for _ in messages]))[0][0]
     switch_dt = messages[switch_idx].data.dtype
-    print(f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples")
+    print(
+        f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples"
+    )
 
     print("Shmem")
     chunk_lens = [_.shape[0] for _ in data_received]
@@ -166,6 +180,8 @@ def test_shmem_mirror_switch_buffer():
     else:
         switch_idx = switch_idx[0]
         switch_dt = data_received[switch_idx].dtype
-        print(f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples")
+        print(
+            f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples"
+        )
     assert dt0 == np.float64
     assert switch_dt == np.float16

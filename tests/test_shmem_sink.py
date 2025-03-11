@@ -41,14 +41,24 @@ class CrazyUnit(ez.Unit):
                 message = replace(
                     message,
                     data=message.data[:, :-1],
-                    axes={**message.axes, "ch": replace(message.axes["ch"], data=message.axes["ch"].data[:-1])},
+                    axes={
+                        **message.axes,
+                        "ch": replace(
+                            message.axes["ch"], data=message.axes["ch"].data[:-1]
+                        ),
+                    },
                 )
             elif self.SETTINGS.change_type == "irregular":
                 # Convert the time axis to a coordinate axis, implying the signal is irregular (no fs).
                 tvec = message.axes["time"].value(np.arange(message.data.shape[0]))
                 message = replace(
                     message,
-                    axes={**message.axes, "time": AxisArray.CoordinateAxis(data=tvec, dims=["time"], unit="s")},
+                    axes={
+                        **message.axes,
+                        "time": AxisArray.CoordinateAxis(
+                            data=tvec, dims=["time"], unit="s"
+                        ),
+                    },
                 )
             elif self.SETTINGS.change_type == "dtype":
                 # Change the data type to float16.
