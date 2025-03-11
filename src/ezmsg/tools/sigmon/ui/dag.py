@@ -67,6 +67,8 @@ class VisDAG:
             mouse_pos = pygame.mouse.get_pos()
             if self._image_rect.left <= mouse_pos[0] <= self._image_rect.right:
                 if event.type == pygame.MOUSEWHEEL:
+                    # The image of the dag is scrolled. `_image_y` is the offset for the top of the image.
+                    # We scroll down (shift image up) by making the top of the image more negative.
                     if event.y > 0:
                         # scroll graph up
                         self._image_y = min(0, self._image_y + SCROLL_STEP)
@@ -80,9 +82,13 @@ class VisDAG:
                     if event.button == 1:
                         # Clicked on the screen over the DAG.
                         # Calculate the position of the click from screen coordinates to DAG coordinates.
+                        # (On a Mac at least)
+                        # The mouse coordinates are top-left is origin, right is positive x, down is positive y.
+                        # The dag _image_rect is left: 0, right: width, top: 0, bottom: height.
+                        # We must add -1 * _image_y to compensate for the pixels of the image shifted up off the screen.
                         graph_pos = (
                             mouse_pos[0] - self._image_rect.left,
-                            mouse_pos[1] - self._image_rect.top + self._image_y,
+                            mouse_pos[1] - self._image_rect.top - self._image_y,
                         )
                         min_row = (
                             (self._node_df.x - graph_pos[0]) ** 2

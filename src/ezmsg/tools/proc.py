@@ -5,7 +5,7 @@ import typing
 
 import ezmsg.core as ez
 
-from .shmem.shmem import ShMemCircBuff, ShMemCircBuffSettings
+from .sigmon.shmem.shmem import ShMemCircBuff, ShMemCircBuffSettings
 
 
 BUF_DUR = 3.0

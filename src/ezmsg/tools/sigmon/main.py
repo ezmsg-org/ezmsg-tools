@@ -2,8 +2,8 @@ import pygame
 import pygame.locals
 import typer
 
-from ezmsg.tools.sigmon.pygame.dag import VisDAG
-from ezmsg.tools.sigmon.pygame.timeseries import Sweep
+from ezmsg.tools.sigmon.ui.dag import VisDAG
+from ezmsg.tools.sigmon.ui.timeseries import Sweep
 from ezmsg.tools.proc import EZProcManager
 
 from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
