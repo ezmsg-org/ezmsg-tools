@@ -2,7 +2,7 @@ import typing
 
 import pygame
 
-from ..shmem.shmem_mirror import EZShmMirror
+from ...shmem.shmem_mirror import EZShmMirror
 
 
 PLOT_BG_COLOR = (255, 255, 255)
