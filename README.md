@@ -66,9 +66,9 @@ Then run your usual pipeline but make sure it attaches to the graph address by p
 
 While the pipeline is running, you can run the signal-monitor tool with (`uv run`) `signal-monitor --graph-addr 127.0.0.1:25978`.
 
-This launches a window with graph visualized on the left. Click on a node's output box to get a live visualization on the right side of the screen plotting the data as it leaves that node.
+This launches a window with graph visualized on the left. Click on a node's output box to get a live visualization on the right side of the screen plotting the data as it leaves that node. Use `a` to toggle auto-scaling. With auto-scaling off, use `-`, and `=` to zoom out and in, respectively.
 
-> Currently only 2-D outputs are supported.
+> Currently only 2-D outputs are supported!
 
 Don't forget to shutdown your graph service when you are done, e.g.: `ezmsg --address 127.0.0.1:25978 shutdown` 
 

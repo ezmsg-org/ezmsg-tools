@@ -199,7 +199,7 @@ class Sweep(BaseRenderer):
         n_samples = res.shape[0]
 
         t_slice = np.s_[max(0, self._read_index - 1) : self._read_index + n_samples]
-        if False and self._autoscale:
+        if self._autoscale:
             means, stds = self._stats_gen.send(self._mirror.buffer[t_slice])
             new_y_range = 3 * np.mean(stds)
             b_reset_scale = (
@@ -255,3 +255,17 @@ class Sweep(BaseRenderer):
         )
         rects.append(_rect)
         return rects
+
+    def handle_event(self, event: pygame.event.Event):
+        if event.type in [pygame.KEYDOWN]:
+            if event.key == pygame.K_a:
+                # Toggle autoscale with 'a' key
+                self._autoscale = not self._autoscale
+            elif not self._autoscale:
+                # When autoscale is disabled, allow manual y-range adjustment
+                if event.key == pygame.K_MINUS:
+                    # Zoom-Out: Increase y-range by 20% with '-' key
+                    self._y_range *= 1.2
+                elif event.key == pygame.K_EQUALS:
+                    # Zoom-in: Decrease y-range by 20% with '=' key
+                    self._y_range *= 0.8
