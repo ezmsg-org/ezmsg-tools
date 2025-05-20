@@ -16,7 +16,7 @@ dependencies = [
 dev = [
     "ruff>=0.8.1",
     "scipy>=1.14.1",
-    "ezmsg-sigproc>=1.8.1",
+    "ezmsg-sigproc>=2.0.0",
 ]
 test = [
     "ezmsg-sigproc>=1.6.0",
@@ -30,7 +30,7 @@ perfmon = [
     "typer>=0.15.1",
     "pygtail>=0.14.0",
     "dash-bootstrap-components>=1.6.0",
-    "ezmsg-sigproc>=1.8.1",
+    "ezmsg-sigproc>=2.0.0",
 ]
 sigmon = [
     "pygame>=2.6.1",
