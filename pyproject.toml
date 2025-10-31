@@ -12,16 +12,29 @@ dependencies = [
   "numpy>=1.26.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "ruff>=0.8.1",
+    {include-group = "lint"},
+    {include-group = "test"},
     "scipy>=1.14.1",
     "ezmsg-sigproc>=2.0.0",
+]
+lint = [
+    "ruff>=0.12.9",
 ]
 test = [
     "ezmsg-sigproc>=1.6.0",
     "pytest>=8.3.3",
 ]
+docs = [
+  "sphinx>=7.0",
+  "sphinx-autodoc-typehints",
+  "sphinx-copybutton",
+  "pydata-sphinx-theme",
+  "myst-parser",
+]
+
+[project.optional-dependencies]
 perfmon = [
     "dash-extensions>=1.0.19",
     "dash>=2.18.2",
