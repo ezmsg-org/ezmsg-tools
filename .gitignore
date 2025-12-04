@@ -50,3 +50,5 @@ Thumbs.db
 
 .venv/
 src/ezmsg/tools/__version__.py
+
+uv.lock
