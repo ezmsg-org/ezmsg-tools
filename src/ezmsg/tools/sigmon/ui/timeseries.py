@@ -201,7 +201,7 @@ class Sweep(BaseRenderer):
         t_slice = np.s_[max(0, self._read_index - 1) : self._read_index + n_samples]
         if self._autoscale:
             means, stds = self._stats_gen.send(self._mirror.buffer[t_slice])
-            new_y_range = 3 * np.mean(stds)
+            new_y_range = max(3 * np.mean(stds), 1e-12)
             b_reset_scale = (
                 new_y_range < 0.8 * self._y_range or new_y_range > 1.2 * self._y_range
             )
