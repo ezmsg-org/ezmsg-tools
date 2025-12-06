@@ -236,7 +236,7 @@ class EZShmMirror:
                     + self._mirror_state.meta_struct.write_index
                 )
 
-        if n_available == 0 or (n is not None and n_available < n):
+        if n_available <= 1 or (n is not None and n_available < n):
             # Not enough samples available.
             # Return a null-slice of the buffer. This provides correct dimensions.
             return self._mirror_state.buffer_arr[:0], b_overflow
