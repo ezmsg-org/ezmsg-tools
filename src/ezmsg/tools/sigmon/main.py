@@ -2,12 +2,10 @@ import pygame
 import pygame.locals
 import typer
 
+from ezmsg.tools.proc import EZProcManager
+from ezmsg.tools.shmem.shmem_mirror import EZShmMirror
 from ezmsg.tools.sigmon.ui.dag import VisDAG
 from ezmsg.tools.sigmon.ui.timeseries import Sweep
-from ezmsg.tools.proc import EZProcManager
-
-from ezmsg.tools.shmem.shmem_mirror import EZShmMirror
-
 
 GRAPH_IP = "127.0.0.1"
 GRAPH_PORT = 25978
@@ -22,9 +20,7 @@ def main(
     # Screen
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     screen_width, screen_height = screen.get_size()
-    screen = pygame.display.set_mode(
-        (screen_width, screen_height), pygame.locals.RESIZABLE
-    )
+    screen = pygame.display.set_mode((screen_width, screen_height), pygame.locals.RESIZABLE)
     screen.fill((0, 0, 0))  # Fill the screen with black
 
     # Interactive ezmsg graph. Its purpose is to show the graph (w/ scrolling)

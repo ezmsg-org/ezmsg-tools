@@ -4,8 +4,7 @@ import numpy as np
 import numpy.typing as npt
 import pygame
 
-from .base import BaseRenderer, PLOT_DUR
-
+from .base import PLOT_DUR, BaseRenderer
 
 PLOT_BG_COLOR = (255, 255, 255)
 PLOT_LINE_COLOR = (0, 0, 0)
@@ -90,10 +89,7 @@ class Sweep(BaseRenderer):
                 # Check if the scale has changed.
                 means, stds = self._stats_gen.send(data)
                 new_y_range = 3 * np.mean(stds)
-                b_reset_scale = (
-                    new_y_range < 0.8 * self._y_range
-                    or new_y_range > 1.2 * self._y_range
-                )
+                b_reset_scale = new_y_range < 0.8 * self._y_range or new_y_range > 1.2 * self._y_range
                 if b_reset_scale:
                     self._y_range = new_y_range
                     # TODO: We should also redraw the entire plot at the new scale.
@@ -113,9 +109,7 @@ class Sweep(BaseRenderer):
                 if b_prepend:
                     xvec = self._xvec[x0 - 1 : x0 + n_samps]
                     if dat_offset == 0:
-                        _data = np.concatenate(
-                            [self._last_y_vec, data[: xvec.shape[0] - 1]], axis=0
-                        )
+                        _data = np.concatenate([self._last_y_vec, data[: xvec.shape[0] - 1]], axis=0)
                     else:
                         _data = data[dat_offset - 1 : dat_offset + xvec.shape[0] - 1]
                 else:
@@ -202,9 +196,7 @@ class Sweep(BaseRenderer):
         if self._autoscale:
             means, stds = self._stats_gen.send(self._mirror.buffer[t_slice])
             new_y_range = max(3 * np.mean(stds), 1e-12)
-            b_reset_scale = (
-                new_y_range < 0.8 * self._y_range or new_y_range > 1.2 * self._y_range
-            )
+            b_reset_scale = new_y_range < 0.8 * self._y_range or new_y_range > 1.2 * self._y_range
             if b_reset_scale:
                 self._y_range = new_y_range
                 t_slice = np.s_[:]

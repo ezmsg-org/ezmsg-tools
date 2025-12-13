@@ -2,8 +2,9 @@
 name = "ezmsg-tools"
 description = "ezmsg namespace package containing tools for working with ezmsg graphs."
 authors = [
-  { name = "Chadwick Boulay", email = "chad@cbneurotech.com"}
+  { name = "Chadwick Boulay", email = "chadwick.boulay@gmail.com"}
 ]
+license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10.15"
 dynamic = ["version"]
@@ -14,10 +15,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    {include-group = "lint"},
-    {include-group = "test"},
+    "pre-commit>=4.0.0",
     "scipy>=1.14.1",
     "ezmsg-sigproc>=2.0.0",
+    {include-group = "lint"},
+    {include-group = "test"},
+    {include-group = "docs"},
 ]
 lint = [
     "ruff>=0.12.9",
@@ -67,3 +70,20 @@ version-file = "src/ezmsg/tools/__version__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ezmsg"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# Exclude auto-generated files
+exclude = ["*/__version__.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.uv.sources]
+# Uncomment to use development version of ezmsg from git
+ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "feature/profiling" }

@@ -1,16 +1,17 @@
+import numpy as np
+import typer
+
 import ezmsg.core as ez
-from ezmsg.util.terminate import TerminateOnTotal
 from ezmsg.sigproc.affinetransform import CommonRereference
 from ezmsg.sigproc.bandpower import BandPower, SpectrogramSettings
-from ezmsg.sigproc.window import Anchor
 from ezmsg.sigproc.butterworthfilter import ButterworthFilter
 from ezmsg.sigproc.downsample import Downsample
 from ezmsg.sigproc.scaler import AdaptiveStandardScaler
 from ezmsg.sigproc.slicer import Slicer
 from ezmsg.sigproc.synth import EEGSynth
 from ezmsg.sigproc.wavelets import CWT, MinPhaseMode
-import numpy as np
-import typer
+from ezmsg.sigproc.window import Anchor
+from ezmsg.util.terminate import TerminateOnTotal
 
 
 def main(
@@ -45,9 +46,7 @@ def main(
     comps = {
         "ECOG": EEGSynth(fs=srate, n_time=n_time, n_ch=n_ch),
         "SELECT": Slicer(axis="ch", selection="2:"),
-        "LP": ButterworthFilter(
-            axis="time", coef_type="sos", order=4, cutoff=srate / 8
-        ),
+        "LP": ButterworthFilter(axis="time", coef_type="sos", order=4, cutoff=srate / 8),
         "DS": Downsample(axis="time", target_rate=srate / 4),
         "CAR": CommonRereference(axis="ch"),
         "FREQ": freq_node,

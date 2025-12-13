@@ -1,10 +1,15 @@
 import asyncio
-from collections import defaultdict
 import typing
+from collections import defaultdict
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import ezmsg.core as ez
 import pandas as pd
+
+import ezmsg.core as ez
+
+if TYPE_CHECKING:
+    import pygraphviz
 
 
 def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
@@ -27,9 +32,7 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
     # Get the dag from the GraphService
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    dag = loop.run_until_complete(
-        ez.graphserver.GraphService(address=graph_address).dag()
-    )
+    dag = loop.run_until_complete(ez.graphserver.GraphService(address=graph_address).dag())
 
     # Retrieve a description of the graph
     graph_connections = dag.graph.copy()
@@ -44,14 +47,10 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
         if "VISBUFF/INPUT_SIGNAL" in v:
             b_refresh_dag = True
             loop.run_until_complete(
-                ez.graphserver.GraphService(address=graph_address).disconnect(
-                    k, "VISBUFF/INPUT_SIGNAL"
-                )
+                ez.graphserver.GraphService(address=graph_address).disconnect(k, "VISBUFF/INPUT_SIGNAL")
             )
     if b_refresh_dag:
-        dag = loop.run_until_complete(
-            ez.graphserver.GraphService(address=graph_address).dag()
-        )
+        dag = loop.run_until_complete(ez.graphserver.GraphService(address=graph_address).dag())
         graph_connections = dag.graph.copy()
 
     # Generate UUID node names
@@ -79,9 +78,7 @@ def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
     def build_graph(g: defaultdict, agraph: pgv.AGraph):
         for k, v in g.items():
             if type(v) is defaultdict:
-                clust = agraph.add_subgraph(
-                    name=f"cluster_{k.lower()}", label=k, cluster=True
-                )
+                clust = agraph.add_subgraph(name=f"cluster_{k.lower()}", label=k, cluster=True)
                 build_graph(v, clust)
             else:
                 agraph.add_node(node_map[v], name=v, label=k)

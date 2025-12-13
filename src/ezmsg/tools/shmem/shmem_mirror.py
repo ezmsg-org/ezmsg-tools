@@ -105,9 +105,7 @@ class EZShmMirror:
         try:
             short_name = shorten_shmem_name(self._shmem_name)
             self._mirror_state.meta_shmem = SharedMemory(short_name, create=False)
-            self._mirror_state.meta_struct = ShmemArrMeta.from_buffer(
-                self._mirror_state.meta_shmem.buf
-            )
+            self._mirror_state.meta_struct = ShmemArrMeta.from_buffer(self._mirror_state.meta_shmem.buf)
         except FileNotFoundError:
             self._mirror_state.meta_struct = None
             self._mirror_state.meta_shmem = None
@@ -118,25 +116,16 @@ class EZShmMirror:
             #  meaning we are reconnecting to the same _name_ but different layout.
             self._cleanup_buffer()
 
-        if (
-            self._mirror_state.meta_struct is None
-            or not self._mirror_state.meta_struct.bvalid
-        ):
+        if self._mirror_state.meta_struct is None or not self._mirror_state.meta_struct.bvalid:
             # Cannot connect to buffer without valid meta.
             return False
 
         try:
-            buff_name = (
-                self._shmem_name
-                + "/buffer"
-                + str(self._mirror_state.meta_struct.buffer_generation)
-            )
+            buff_name = self._shmem_name + "/buffer" + str(self._mirror_state.meta_struct.buffer_generation)
             short_name = shorten_shmem_name(buff_name)
             self._mirror_state.buffer_shmem = SharedMemory(short_name, create=False)
             self._mirror_state.buffer_arr = np.ndarray(
-                self._mirror_state.meta_struct.shape[
-                    : self._mirror_state.meta_struct.ndim
-                ],
+                self._mirror_state.meta_struct.shape[: self._mirror_state.meta_struct.ndim],
                 dtype=np.dtype(self._mirror_state.meta_struct.dtype),
                 buffer=self._mirror_state.buffer_shmem.buf[:],
             )
@@ -177,16 +166,11 @@ class EZShmMirror:
 
         self._last_connect_try = time.time()
 
-    def auto_view(
-        self, n: typing.Optional[int] = None
-    ) -> typing.Tuple[npt.NDArray, bool]:
+    def auto_view(self, n: typing.Optional[int] = None) -> typing.Tuple[npt.NDArray, bool]:
         if self._mirror_state.meta_struct is None:
             self.connect(self._shmem_name)
 
-        if (
-            self._mirror_state.meta_struct is None
-            or not self._mirror_state.meta_struct.bvalid
-        ):
+        if self._mirror_state.meta_struct is None or not self._mirror_state.meta_struct.bvalid:
             # Still not connected
             #  or we are connected but the buffer data is invalid.
             return np.array([[]]), False
@@ -195,8 +179,7 @@ class EZShmMirror:
         # Determine if we need to reset the buffer
         if (
             self._last_meta is None
-            or self._mirror_state.meta_struct.buffer_generation
-            != self._last_meta.buffer_generation
+            or self._mirror_state.meta_struct.buffer_generation != self._last_meta.buffer_generation
             or self._mirror_state.buffer_arr is None
         ):
             b_connected = self._reset_buffer()
@@ -207,28 +190,23 @@ class EZShmMirror:
 
         # -- From here, we should know we have a good connection to a valid buffer -- #
 
-        wrapped_since_last_read = (
-            self._mirror_state.meta_struct.wrap_counter - self._last_meta.wrap_counter
-        )
+        wrapped_since_last_read = self._mirror_state.meta_struct.wrap_counter - self._last_meta.wrap_counter
         b_overflow = wrapped_since_last_read > 1 or (
-            wrapped_since_last_read == 1
-            and self._mirror_state.meta_struct.write_index >= self._read_index
+            wrapped_since_last_read == 1 and self._mirror_state.meta_struct.write_index >= self._read_index
         )
 
         if b_overflow:
             # In case of overflow, start reading from the oldest available data
-            self._read_index = (
-                self._mirror_state.meta_struct.write_index + 1
-            ) % self._mirror_state.meta_struct.shape[0]
+            self._read_index = (self._mirror_state.meta_struct.write_index + 1) % self._mirror_state.meta_struct.shape[
+                0
+            ]
             self._last_meta.wrap_counter = self._mirror_state.meta_struct.wrap_counter
 
         # Calculate how many samples are available
         n_available = 0
         if self._mirror_state.buffer_arr is not None:
             if self._mirror_state.meta_struct.write_index >= self._read_index:
-                n_available = (
-                    self._mirror_state.meta_struct.write_index - self._read_index
-                )
+                n_available = self._mirror_state.meta_struct.write_index - self._read_index
             else:
                 n_available = (
                     self._mirror_state.meta_struct.shape[0]
@@ -251,9 +229,7 @@ class EZShmMirror:
             result = self._mirror_state.buffer_arr[t_slice, :]
         else:
             # Split read into two chunks
-            n_after_wrap = n - (
-                self._mirror_state.meta_struct.shape[0] - self._read_index
-            )
+            n_after_wrap = n - (self._mirror_state.meta_struct.shape[0] - self._read_index)
             result = np.concatenate(
                 (
                     self._mirror_state.buffer_arr[self._read_index :],
@@ -262,9 +238,7 @@ class EZShmMirror:
                 axis=0,
             )
 
-        self._read_index = (
-            self._read_index + n
-        ) % self._mirror_state.meta_struct.shape[0]
+        self._read_index = (self._read_index + n) % self._mirror_state.meta_struct.shape[0]
         self._last_meta.wrap_counter = self._mirror_state.meta_struct.wrap_counter
 
         return result, b_overflow

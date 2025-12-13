@@ -14,18 +14,18 @@ Only the last 1 minute of data is used in the table and graphs.
 import asyncio
 import datetime
 import io
-from pathlib import Path
 import typing
+from pathlib import Path
 
 import dash
-from dash_extensions import Mermaid, enrich
 import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 import pygtail
+from dash_extensions import Mermaid, enrich
+
 from ezmsg.core.graphserver import GraphService
 from ezmsg.sigproc.util.profile import get_logger_path
-
 
 PAGE_SIZE = 20
 
@@ -36,9 +36,7 @@ state = dbc.Col(
         dash.dcc.Interval(id="interval", interval=10_000, n_intervals=0),
         dash.dcc.Store(id="df-store"),
         dash.dcc.Store(id="last-dt-store"),
-        dash.html.Div(
-            id="onload"
-        ),  # this div is used to trigger any functions that need to run on page load
+        dash.html.Div(id="onload"),  # this div is used to trigger any functions that need to run on page load
     ]
 )
 
@@ -187,9 +185,7 @@ def interval_callback(_, toggle_state, logger_path, data, last_dt):
     if data is not None:
         df = pd.DataFrame.from_dict(data)
         df["Time"] = pd.to_datetime(df["Time"])
-        new_df = pd.read_csv(
-            io.StringIO(new_lines), names=df.columns, parse_dates=["Time"]
-        )
+        new_df = pd.read_csv(io.StringIO(new_lines), names=df.columns, parse_dates=["Time"])
         df = pd.concat([df, new_df], ignore_index=True)
     else:
         df = pd.read_csv(io.StringIO(new_lines), header=0, parse_dates=["Time"])
@@ -210,9 +206,7 @@ def interval_callback(_, toggle_state, logger_path, data, last_dt):
 def update_dag(data, logger_path):
     async def _get_formatted_graph():
         graph_service = GraphService(("127.0.0.1", 25978))
-        graph_out = await graph_service.get_formatted_graph(
-            fmt="mermaid", direction="LR"
-        )
+        graph_out = await graph_service.get_formatted_graph(fmt="mermaid", direction="LR")
         return graph_out
 
     loop = asyncio.new_event_loop()
@@ -234,9 +228,7 @@ def update_dag(data, logger_path):
     for topic, mean in topic_means.items():
         topic_str = topic.split("/")[-1].lower()
         # https://mermaid.js.org/syntax/flowchart.html#styling-a-node
-        color = px.colors.find_intermediate_color(
-            (0, 0.0, 1.0), (1.0, 0.0, 0.0), mean / max_elapsed
-        )
+        color = px.colors.find_intermediate_color((0, 0.0, 1.0), (1.0, 0.0, 0.0), mean / max_elapsed)
         fill_str = "".join([f"{int(c * 255):02x}" for c in color])
         # style id2 fill:#bbf,stroke:#f66,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
         graph_str += f"  style {topic_str} fill:#{fill_str}80\n"
@@ -257,9 +249,7 @@ def update_table(data, page_current, page_size):
     df["Time"] = pd.to_datetime(df["Time"])
     if page_current < 0:
         page_current = int(len(df) // PAGE_SIZE) - 1
-    out_data = df.iloc[
-        page_current * page_size : (page_current + 1) * page_size
-    ].to_dict("records")
+    out_data = df.iloc[page_current * page_size : (page_current + 1) * page_size].to_dict("records")
     return out_data, page_current
 
 

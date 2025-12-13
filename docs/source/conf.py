@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath("../../src"))
 # -- Project information --------------------------
 
 project = "ezmsg.tools"
-copyright = "2024, ezmsg Contributors"
+copyright = "2025, ezmsg Contributors"
 author = "ezmsg Contributors"
 
 # The version is managed by hatch-vcs and stored in __version__.py

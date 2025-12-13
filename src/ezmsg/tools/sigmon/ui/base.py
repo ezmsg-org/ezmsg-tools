@@ -4,7 +4,6 @@ import pygame
 
 from ...shmem.shmem_mirror import EZShmMirror
 
-
 PLOT_BG_COLOR = (255, 255, 255)
 PLOT_FONT_COLOR = (0, 0, 0)
 PLOT_DUR = 2.0

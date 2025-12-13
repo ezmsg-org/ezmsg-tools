@@ -1,18 +1,18 @@
-from dataclasses import replace
-from pathlib import Path
 import tempfile
 import typing
+from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
+
 import ezmsg.core as ez
 from ezmsg.sigproc.synth import Clock, Oscillator
-from ezmsg.util.messages.axisarray import AxisArray
+from ezmsg.tools.shmem.shmem import ShMemCircBuff
 from ezmsg.util.messagecodec import message_log
 from ezmsg.util.messagelogger import MessageLogger
+from ezmsg.util.messages.axisarray import AxisArray
 from ezmsg.util.terminate import TerminateOnTotal
-
-from ezmsg.tools.shmem.shmem import ShMemCircBuff
 
 
 class CrazyUnitSettings(ez.Settings):
@@ -43,9 +43,7 @@ class CrazyUnit(ez.Unit):
                     data=message.data[:, :-1],
                     axes={
                         **message.axes,
-                        "ch": replace(
-                            message.axes["ch"], data=message.axes["ch"].data[:-1]
-                        ),
+                        "ch": replace(message.axes["ch"], data=message.axes["ch"].data[:-1]),
                     },
                 )
             elif self.SETTINGS.change_type == "irregular":
@@ -55,9 +53,7 @@ class CrazyUnit(ez.Unit):
                     message,
                     axes={
                         **message.axes,
-                        "time": AxisArray.CoordinateAxis(
-                            data=tvec, dims=["time"], unit="s"
-                        ),
+                        "time": AxisArray.CoordinateAxis(data=tvec, dims=["time"], unit="s"),
                     },
                 )
             elif self.SETTINGS.change_type == "dtype":
