@@ -1,11 +1,11 @@
-import ezmsg.core as ez
-from ezmsg.util.terminate import TerminateOnTotalSettings, TerminateOnTotal
-from ezmsg.sigproc.synth import CounterSettings, Counter
-
 import sys
 
+import ezmsg.core as ez
+from ezmsg.sigproc.synth import Counter, CounterSettings
+from ezmsg.util.terminate import TerminateOnTotal, TerminateOnTotalSettings
+
 sys.path.append("..")
-from nodes.dummy import DummySettings, Dummy
+from nodes.dummy import Dummy, DummySettings
 
 
 def main(

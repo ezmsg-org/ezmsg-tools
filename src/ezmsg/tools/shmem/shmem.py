@@ -30,9 +30,10 @@ import time
 import typing
 from multiprocessing.shared_memory import SharedMemory
 
-import ezmsg.core as ez
 import numpy as np
 import numpy.typing as npt
+
+import ezmsg.core as ez
 from ezmsg.util.messages.axisarray import AxisArray, AxisBase
 
 UINT64_SIZE = 8
@@ -63,9 +64,7 @@ def shorten_shmem_name(long_name: str) -> str:
     hash_obj = hashlib.sha256(long_name.encode("utf-8"))
     # Convert to URL-safe base64 and limit to 20 characters (plus 'sm_' prefix)
     # The 'sm_' prefix helps identify this as a shared memory name
-    short_name = (
-        "sm_" + base64.urlsafe_b64encode(hash_obj.digest()).decode("ascii")[:20]
-    )
+    short_name = "sm_" + base64.urlsafe_b64encode(hash_obj.digest()).decode("ascii")[:20]
 
     return short_name
 
@@ -157,9 +156,7 @@ def _persist_create_shmem(name: str, size: int) -> SharedMemory:
             )
             tmp_shmem.close()
             tmp_shmem.unlink()
-    ez.logger.info(
-        f"Created shmem at {name} in {n_attempts} attempts after {time.time() - t0:.2f} s."
-    )
+    ez.logger.info(f"Created shmem at {name} in {n_attempts} attempts after {time.time() - t0:.2f} s.")
     return result
 
 
@@ -297,9 +294,7 @@ class ShMemCircBuff(ez.Unit):
             fs = 1 / axis.gain
         return int(np.ceil(self.SETTINGS.buf_dur * fs))
 
-    def _get_msg_meta(
-        self, msg: AxisArray
-    ) -> typing.Tuple[bytes, float, int, typing.Tuple[int, ...]]:
+    def _get_msg_meta(self, msg: AxisArray) -> typing.Tuple[bytes, float, int, typing.Tuple[int, ...]]:
         """
         Utility function to extract relevant metadata from the incoming message.
 
@@ -349,9 +344,7 @@ class ShMemCircBuff(ez.Unit):
             self.STATE.meta_struct.dtype = msg_dtype
             self.STATE.meta_struct.srate = msg_srate
             self.STATE.meta_struct.ndim = 1 + len(frame_shape)
-            self.STATE.meta_struct.shape[: self.STATE.meta_struct.ndim] = (
-                n_frames,
-            ) + frame_shape
+            self.STATE.meta_struct.shape[: self.STATE.meta_struct.ndim] = (n_frames,) + frame_shape
             self.STATE.meta_struct.key = msg.key
             self.STATE.meta_struct.write_index = 0
             self.STATE.meta_struct.wrap_counter = 0
@@ -371,11 +364,7 @@ class ShMemCircBuff(ez.Unit):
         self.STATE.meta_struct.buffer_generation += 1
         msg_dtype, msg_srate, n_frames, frame_shape = self._get_msg_meta(msg)
         buff_size = int(n_frames * np.prod(frame_shape) * msg.data.itemsize)
-        buff_shm_name = (
-            self.SETTINGS.shmem_name
-            + "/buffer"
-            + str(self.STATE.meta_struct.buffer_generation)
-        )
+        buff_shm_name = self.SETTINGS.shmem_name + "/buffer" + str(self.STATE.meta_struct.buffer_generation)
         short_name = shorten_shmem_name(buff_shm_name)
         self.STATE.buffer_shmem = _persist_create_shmem(short_name, buff_size)
         self.STATE.buffer_arr = np.ndarray(
@@ -425,14 +414,10 @@ class ShMemCircBuff(ez.Unit):
 
         if write_stop > self.STATE.buffer_arr.shape[0]:
             overflow = write_stop - self.STATE.buffer_arr.shape[0]
-            self.STATE.buffer_arr[self.STATE.meta_struct.write_index :] = data[
-                : n_samples - overflow
-            ]
+            self.STATE.buffer_arr[self.STATE.meta_struct.write_index :] = data[: n_samples - overflow]
             self.STATE.buffer_arr[:overflow] = data[n_samples - overflow :]
             self.STATE.meta_struct.write_index = overflow
             self.STATE.meta_struct.wrap_counter += 1
         else:
-            self.STATE.buffer_arr[self.STATE.meta_struct.write_index : write_stop] = (
-                data[:]
-            )
+            self.STATE.buffer_arr[self.STATE.meta_struct.write_index : write_stop] = data[:]
             self.STATE.meta_struct.write_index = write_stop

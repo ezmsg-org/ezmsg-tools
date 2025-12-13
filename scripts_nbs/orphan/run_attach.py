@@ -2,13 +2,13 @@ import asyncio
 import logging
 
 import typer
+
 import ezmsg.core as ez
-from ezmsg.core.backendprocess import new_threaded_event_loop, DefaultBackendProcess
+import ezmsg.core.graphserver
 import ezmsg.core.messagecache
 import ezmsg.core.shmserver
-import ezmsg.core.graphserver
+from ezmsg.core.backendprocess import DefaultBackendProcess, new_threaded_event_loop
 from ezmsg.util.debuglog import DebugLog
-
 
 logger = logging.getLogger("attach_ezmsg")
 
@@ -53,9 +53,7 @@ def main(
         async def create_graph_context() -> ez.GraphContext:
             return await ez.GraphContext(graph_service, shm_service).__aenter__()
 
-        graph_context = asyncio.run_coroutine_threadsafe(
-            create_graph_context(), loop
-        ).result()
+        graph_context = asyncio.run_coroutine_threadsafe(create_graph_context(), loop).result()
 
         async def cleanup_graph() -> None:
             await graph_context.__aexit__(None, None, None)

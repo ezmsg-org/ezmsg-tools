@@ -52,3 +52,4 @@ Thumbs.db
 src/ezmsg/tools/__version__.py
 
 uv.lock
+settings.local.json

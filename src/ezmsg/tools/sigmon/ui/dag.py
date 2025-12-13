@@ -1,13 +1,12 @@
-from pathlib import Path
 import sys
 import tempfile
 import typing
+from pathlib import Path
 
 import pygame
 import pygame.event
 
 from ...dag import get_graph, pgv2pd
-
 
 SCROLL_STEP = 50
 
@@ -37,12 +36,8 @@ class VisDAG:
 
         if sys.platform == "win32":
             # On Windows, it looks like we need to scale the svg coordinates by the window dims.
-            x_scale = self._image_rect.width / (
-                self._node_df["x"].max() + self._node_df["x"].min()
-            )
-            y_scale = self._image_rect.height / (
-                self._node_df["y"].max() + self._node_df["y"].min()
-            )
+            x_scale = self._image_rect.width / (self._node_df["x"].max() + self._node_df["x"].min())
+            y_scale = self._image_rect.height / (self._node_df["y"].max() + self._node_df["y"].min())
         else:
             # Scale the coordinates in the dataframe by png size / svg size
             _svg = pygame.image.load(svg_path)
@@ -91,8 +86,7 @@ class VisDAG:
                             mouse_pos[1] - self._image_rect.top - self._image_y,
                         )
                         min_row = (
-                            (self._node_df.x - graph_pos[0]) ** 2
-                            + (self._node_df.y - graph_pos[1]) ** 2
+                            (self._node_df.x - graph_pos[0]) ** 2 + (self._node_df.y - graph_pos[1]) ** 2
                         ).argmin()
                         clicked_node_path = f"{self._node_df.iloc[min_row]['upstream']}"
         return clicked_node_path

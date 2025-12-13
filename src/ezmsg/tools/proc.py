@@ -7,7 +7,6 @@ import ezmsg.core as ez
 
 from .shmem.shmem import ShMemCircBuff, ShMemCircBuffSettings
 
-
 BUF_DUR = 3.0
 
 
@@ -36,9 +35,7 @@ class EZProcManager:
     We do not actually interact with the shared memory in this class. See .mirror.EzmsgShmMirror.
     """
 
-    def __init__(
-        self, graph_ip: str, graph_port: int, buf_dur: float = BUF_DUR
-    ) -> None:
+    def __init__(self, graph_ip: str, graph_port: int, buf_dur: float = BUF_DUR) -> None:
         self._graph_addr: typing.Tuple[str, int] = (graph_ip, graph_port)
         self._buf_dur = buf_dur
         self._proc = None
@@ -84,9 +81,7 @@ class EZProcManager:
             conn=self._remote_conn,
             axis=axis,
         )
-        self._proc = EzMonitorProcess(
-            unit_settings, self._node_path, address=self._graph_addr
-        )
+        self._proc = EzMonitorProcess(unit_settings, self._node_path, address=self._graph_addr)
         self._proc.start()
 
     # if self._rend_conn.poll(): msg = self._rend_conn.recv()

@@ -1,22 +1,22 @@
-from dataclasses import replace
 import os
-from pathlib import Path
 import tempfile
-import time
 import threading
+import time
 import typing
+from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
+
 import ezmsg.core as ez
 from ezmsg.sigproc.synth import Clock, Oscillator
-from ezmsg.util.messages.axisarray import AxisArray
-from ezmsg.util.messagelogger import MessageLogger
-from ezmsg.util.messagecodec import message_log
-from ezmsg.util.terminate import TerminateOnTotal
-
 from ezmsg.tools.sigmon.shmem.shmem import ShMemCircBuff
 from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
+from ezmsg.util.messagecodec import message_log
+from ezmsg.util.messagelogger import MessageLogger
+from ezmsg.util.messages.axisarray import AxisArray
+from ezmsg.util.terminate import TerminateOnTotal
 
 
 class CrazyUnitSettings(ez.Settings):
@@ -47,9 +47,7 @@ class CrazyUnit(ez.Unit):
                     data=message.data[:, :-1],
                     axes={
                         **message.axes,
-                        "ch": replace(
-                            message.axes["ch"], data=message.axes["ch"].data[:-1]
-                        ),
+                        "ch": replace(message.axes["ch"], data=message.axes["ch"].data[:-1]),
                     },
                 )
             elif self.SETTINGS.change_type == "irregular":
@@ -59,9 +57,7 @@ class CrazyUnit(ez.Unit):
                     message,
                     axes={
                         **message.axes,
-                        "time": AxisArray.CoordinateAxis(
-                            data=tvec, dims=["time"], unit="s"
-                        ),
+                        "time": AxisArray.CoordinateAxis(data=tvec, dims=["time"], unit="s"),
                     },
                 )
             elif self.SETTINGS.change_type == "dtype":
@@ -90,9 +86,7 @@ def app(file_path) -> None:
 
     comps = {
         "CLOCK": Clock(dispatch_rate=chunk_rate),
-        "SYNTH": Oscillator(
-            n_time=chunk_size, fs=SR, n_ch=CHANNEL_COUNT, dispatch_rate="ext_clock"
-        ),
+        "SYNTH": Oscillator(n_time=chunk_size, fs=SR, n_ch=CHANNEL_COUNT, dispatch_rate="ext_clock"),
         "CRAZY": CrazyUnit(change_after=n_messages // 2, change_type=change_type),
         "SINK": ShMemCircBuff(SHMEM_NAME, 2.0, conn=None, axis="time"),
         "LOGGER": MessageLogger(output=file_path),
@@ -166,9 +160,7 @@ def test_shmem_mirror_switch_buffer():
     dt0 = messages[0].data.dtype
     switch_idx = np.where(~np.array([_.data.dtype == dt0 for _ in messages]))[0][0]
     switch_dt = messages[switch_idx].data.dtype
-    print(
-        f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples"
-    )
+    print(f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples")
 
     print("Shmem")
     chunk_lens = [_.shape[0] for _ in data_received]
@@ -180,8 +172,6 @@ def test_shmem_mirror_switch_buffer():
     else:
         switch_idx = switch_idx[0]
         switch_dt = data_received[switch_idx].dtype
-        print(
-            f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples"
-        )
+        print(f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples")
     assert dt0 == np.float64
     assert switch_dt == np.float16
