@@ -4,9 +4,8 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import pandas as pd
-
 import ezmsg.core as ez
+import pandas as pd
 
 if TYPE_CHECKING:
     import pygraphviz

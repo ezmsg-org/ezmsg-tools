@@ -1,7 +1,6 @@
+import ezmsg.core as ez
 import numpy as np
 import typer
-
-import ezmsg.core as ez
 from ezmsg.sigproc.affinetransform import CommonRereference
 from ezmsg.sigproc.bandpower import BandPower, SpectrogramSettings
 from ezmsg.sigproc.butterworthfilter import ButterworthFilter

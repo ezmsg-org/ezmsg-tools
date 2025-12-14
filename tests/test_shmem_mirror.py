@@ -6,17 +6,17 @@ import typing
 from dataclasses import replace
 from pathlib import Path
 
+import ezmsg.core as ez
 import numpy as np
 import pytest
-
-import ezmsg.core as ez
 from ezmsg.sigproc.synth import Clock, Oscillator
-from ezmsg.tools.sigmon.shmem.shmem import ShMemCircBuff
-from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
 from ezmsg.util.messagecodec import message_log
 from ezmsg.util.messagelogger import MessageLogger
 from ezmsg.util.messages.axisarray import AxisArray
 from ezmsg.util.terminate import TerminateOnTotal
+
+from ezmsg.tools.sigmon.shmem.shmem import ShMemCircBuff
+from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
 
 
 class CrazyUnitSettings(ez.Settings):

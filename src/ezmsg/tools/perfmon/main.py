@@ -23,7 +23,6 @@ import pandas as pd
 import plotly.express as px
 import pygtail
 from dash_extensions import Mermaid, enrich
-
 from ezmsg.baseproc.util.profile import get_logger_path
 from ezmsg.core.graphserver import GraphService
 

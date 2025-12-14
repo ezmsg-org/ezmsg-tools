@@ -1,12 +1,11 @@
 import asyncio
 import logging
 
-import typer
-
 import ezmsg.core as ez
 import ezmsg.core.graphserver
 import ezmsg.core.messagecache
 import ezmsg.core.shmserver
+import typer
 from ezmsg.core.backendprocess import DefaultBackendProcess, new_threaded_event_loop
 from ezmsg.util.debuglog import DebugLog
 

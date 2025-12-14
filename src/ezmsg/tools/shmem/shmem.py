@@ -30,10 +30,9 @@ import time
 import typing
 from multiprocessing.shared_memory import SharedMemory
 
+import ezmsg.core as ez
 import numpy as np
 import numpy.typing as npt
-
-import ezmsg.core as ez
 from ezmsg.util.messages.axisarray import AxisArray, AxisBase
 
 UINT64_SIZE = 8

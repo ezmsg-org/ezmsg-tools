@@ -1,8 +1,8 @@
 import asyncio
 
+import ezmsg.core as ez
 import typer
 
-import ezmsg.core as ez
 from ezmsg.tools.dag import crawl_coro
 from ezmsg.tools.profile import ProfileLog, ProfileLogSettings
 
