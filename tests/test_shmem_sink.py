@@ -90,7 +90,7 @@ def test_shmem_change(change_type: str):
         "TERM": TerminateOnTotal(total=n_messages),
     }
     conns = (
-        (comps["CLOCK"].OUTPUT_CLOCK, comps["SYNTH"].INPUT_CLOCK),
+        (comps["CLOCK"].OUTPUT_SIGNAL, comps["SYNTH"].INPUT_SIGNAL),
         (comps["SYNTH"].OUTPUT_SIGNAL, comps["CRAZY"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["LOGGER"].INPUT_MESSAGE),
         (comps["LOGGER"].OUTPUT_MESSAGE, comps["TERM"].INPUT_MESSAGE),
