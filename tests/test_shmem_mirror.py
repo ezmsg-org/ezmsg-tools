@@ -15,8 +15,8 @@ from ezmsg.util.messagelogger import MessageLogger
 from ezmsg.util.messages.axisarray import AxisArray
 from ezmsg.util.terminate import TerminateOnTotal
 
-from ezmsg.tools.sigmon.shmem.shmem import ShMemCircBuff
-from ezmsg.tools.sigmon.shmem.shmem_mirror import EZShmMirror
+from ezmsg.tools.shmem.shmem import ShMemCircBuff
+from ezmsg.tools.shmem.shmem_mirror import EZShmMirror
 
 
 class CrazyUnitSettings(ez.Settings):
@@ -93,7 +93,7 @@ def app(file_path) -> None:
         "TERM": TerminateOnTotal(total=n_messages),
     }
     conns = (
-        (comps["CLOCK"].OUTPUT_CLOCK, comps["SYNTH"].INPUT_CLOCK),
+        (comps["CLOCK"].OUTPUT_SIGNAL, comps["SYNTH"].INPUT_SIGNAL),
         (comps["SYNTH"].OUTPUT_SIGNAL, comps["CRAZY"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["SINK"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["LOGGER"].INPUT_MESSAGE),
