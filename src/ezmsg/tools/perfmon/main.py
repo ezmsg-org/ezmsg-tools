@@ -24,8 +24,8 @@ import plotly.express as px
 import pygtail
 from dash_extensions import Mermaid, enrich
 
+from ezmsg.baseproc.util.profile import get_logger_path
 from ezmsg.core.graphserver import GraphService
-from ezmsg.sigproc.util.profile import get_logger_path
 
 PAGE_SIZE = 20
 

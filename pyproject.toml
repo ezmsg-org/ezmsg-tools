@@ -20,7 +20,6 @@ dev = [
     "ezmsg-sigproc>=2.0.0",
     {include-group = "lint"},
     {include-group = "test"},
-    {include-group = "docs"},
 ]
 lint = [
     "ruff>=0.12.9",
@@ -46,7 +45,7 @@ perfmon = [
     "typer>=0.15.1",
     "pygtail>=0.14.0",
     "dash-bootstrap-components>=1.6.0",
-    "ezmsg-sigproc>=2.0.0",
+    "ezmsg-baseproc",
 ]
 sigmon = [
     "pygame>=2.6.1",
@@ -86,4 +85,4 @@ select = ["E", "F", "I", "W"]
 
 [tool.uv.sources]
 # Uncomment to use development version of ezmsg from git
-ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "feature/profiling" }
+#ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "feature/profiling" }
