@@ -194,8 +194,13 @@ class Sweep(BaseRenderer):
 
         t_slice = np.s_[max(0, self._read_index - 1) : self._read_index + n_samples]
         if self._autoscale:
-            means, stds = self._stats_gen.send(self._mirror.buffer[t_slice])
-            new_y_range = max(3 * np.mean(stds), 1e-12)
+            buffer_slice = self._mirror.buffer[t_slice]
+            # Handle nan/inf values that can break autoscaling
+            if np.any(~np.isfinite(buffer_slice)):
+                buffer_slice = np.nan_to_num(buffer_slice, nan=0.0, posinf=0.0, neginf=0.0)
+            means, stds = self._stats_gen.send(buffer_slice)
+            mean_std = np.nanmean(stds)  # Use nanmean to handle any remaining nan
+            new_y_range = max(3 * mean_std, 1e-12) if np.isfinite(mean_std) else self._y_range
             b_reset_scale = new_y_range < 0.8 * self._y_range or new_y_range > 1.2 * self._y_range
             if b_reset_scale:
                 self._y_range = new_y_range
@@ -218,6 +223,9 @@ class Sweep(BaseRenderer):
         # Plot the lines
         for ch_ix, ch_offset in enumerate(yoffsets):
             plot_dat = self._mirror.buffer[t_slice, ch_ix] + ch_offset
+            # Handle nan/inf values that would break pygame.draw.lines
+            if np.any(~np.isfinite(plot_dat)):
+                plot_dat = np.nan_to_num(plot_dat, nan=ch_offset, posinf=ch_offset, neginf=ch_offset)
             try:
                 xy = np.column_stack((_x * self._x2px, plot_dat * y2px))
             except ValueError:
