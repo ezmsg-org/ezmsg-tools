@@ -2,7 +2,13 @@
 
 A namespace package for [ezmsg](https://github.com/iscoe/ezmsg) to visualize running graphs and data.
 
-The data visualization is highly fragile. Expect bugs.
+Key features:
+
+* **Graph visualization** - Visualize ezmsg graph topologies
+* **Data visualization** - Real-time data plotting and monitoring
+* **Debug tools** - Tools for debugging ezmsg pipelines
+
+> The data visualization is highly fragile. Expect bugs.
 
 ## Installation
 
@@ -24,19 +30,9 @@ More than likely, you will want to include at least one of the extras when insta
 
 `pip install "ezmsg-tools[all]"`
 
-### Development Version
+Or install the latest development version:
 
-If you intend to edit `ezmsg-tools` then please refer to the [Developers](#developers) section below.
-
-You can add the development version of ezmsg-tools directly from GitHub:
-
-* Using `pip`: `pip install git+https://github.com/ezmsg-org/ezmsg-tools.git@dev`
-* Using `poetry`: `poetry add "git+https://github.com/ezmsg-org/ezmsg-tools.git@dev"`
-* Using `uv`: `uv add git+https://github.com/ezmsg-org/ezmsg-tools --branch dev`
-
-You probably want to include the extras when installing the development version:
-
-* `pip install "ezmsg-tools[all] @ git+https://github.com/ezmsg-org/ezmsg-tools.git@dev"`
+`pip install "ezmsg-tools[all] @ git+https://github.com/ezmsg-org/ezmsg-tools.git@dev"`
 
 ## Getting Started
 
@@ -55,6 +51,8 @@ During a run with profiling enabled, the logfiles will be created in the specifi
 During or after a pipeline run with profiling enabled, you can run (`uv run `) `performance-monitor` to visualize the performance of the nodes in the pipeline.
 
 > Unlike `signal-monitor`, this tool does not require the pipeline to attach to an existing graph service because it relies exclusively on the logfile.
+
+> This performance monitor is soon to be deprecated in favor of monitoring tools built-in to ezmsg. 
 
 ### ezmsg-signal-monitor
 
@@ -81,8 +79,9 @@ We use [`uv`](https://docs.astral.sh/uv/getting-started/installation/) for devel
 3. Open a terminal and `cd` to the cloned folder.
 4. Make sure `pygraphviz` [pre-requisites](#pre-requisites) are installed.
     * On mac: `export CFLAGS="-I $(brew --prefix graphviz)/include"` and `export LDFLAGS="-L $(brew --prefix graphviz)/lib"`
-5. `uv sync --all-extras --python 3.10` to create a .venv and install ezmsg-tools including dev and test dependencies.
-6. After editing code and making commits, Run the test suite before making a PR: `uv run pytest`
+5. `uv sync --all-extras` to create a .venv and install ezmsg-tools including dev and test dependencies.
+6. (Optional) Install pre-commit hooks: `uv run pre-commit install`
+7. After editing code and making commits, Run the test suite before making a PR: `uv run pytest`
 
 ## Troubleshooting
 
