@@ -3,6 +3,7 @@ import tempfile
 import typing
 from pathlib import Path
 
+import pandas as pd
 import pygame
 import pygame.event
 
@@ -21,6 +22,24 @@ class VisDAG:
     ):
         self._screen_height = screen_height
         G = get_graph((graph_ip, graph_port))
+
+        # Handle empty graph case
+        if len(G.nodes()) == 0:
+            self._node_df = pd.DataFrame(columns=["name", "x", "y", "upstream"])
+            # Create a placeholder surface with "No graph" message
+            placeholder_width = 300
+            self._image = pygame.Surface((placeholder_width, screen_height))
+            self._image.fill((40, 40, 40))  # Dark gray background
+            font = pygame.font.Font(None, 36)
+            text = font.render("No graph connected", True, (180, 180, 180))
+            text_rect = text.get_rect(center=(placeholder_width // 2, 50))
+            self._image.blit(text, text_rect)
+            self._image_rect = self._image.get_rect(topleft=tl_offset)
+            self._min_y = 0
+            self._image_y = 0
+            self._b_update = True
+            return
+
         G.layout(prog="dot")
         # Create SVG to get the correct coordinates
         svg_path = Path(tempfile.gettempdir()) / "ezmsg-graphviz.svg"
@@ -74,7 +93,7 @@ class VisDAG:
 
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     # Mouse events
-                    if event.button == 1:
+                    if event.button == 1 and len(self._node_df) > 0:
                         # Clicked on the screen over the DAG.
                         # Calculate the position of the click from screen coordinates to DAG coordinates.
                         # (On a Mac at least)

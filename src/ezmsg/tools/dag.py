@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import typing
 from collections import defaultdict
 from typing import TYPE_CHECKING
@@ -10,31 +11,49 @@ import pandas as pd
 if TYPE_CHECKING:
     import pygraphviz
 
+logger = logging.getLogger(__name__)
 
-def get_graph(graph_address: typing.Tuple[str, int]) -> "pygraphviz.AGraph":
+
+def get_graph(graph_address: typing.Tuple[str, int], timeout: float = 5.0) -> "pygraphviz.AGraph":
     import pygraphviz as pgv
 
     # Create a graphviz object with our graph components as nodes and our connections as edges.
     G = pgv.AGraph(name="ezmsg-graphviz", strict=False, directed=True)
     G.graph_attr["label"] = "ezmsg-graphviz"
     G.graph_attr["rankdir"] = "TB"
-    # G.graph_attr["outputorder"] = "edgesfirst"
-    # G.graph_attr["ratio"] = "1.0"
-    # G.node_attr["shape"] = "circle"
-    # G.node_attr["fixedsize"] = "true"
     G.node_attr["fontsize"] = "8"
     G.node_attr["fontcolor"] = "#000000"
     G.node_attr["style"] = "filled"
     G.edge_attr["color"] = "#0000FF"
     G.edge_attr["style"] = "setlinewidth(2)"
 
-    # Get the dag from the GraphService
+    # Get the dag from the GraphService with timeout
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    dag = loop.run_until_complete(ez.graphserver.GraphService(address=graph_address).dag())
+
+    async def dag_with_timeout():
+        return await asyncio.wait_for(ez.graphserver.GraphService(address=graph_address).dag(), timeout=timeout)
+
+    try:
+        dag = loop.run_until_complete(dag_with_timeout())
+    except asyncio.TimeoutError:
+        logger.warning(f"GraphService.dag() timed out after {timeout}s - returning empty graph")
+        return G
+    except (ConnectionRefusedError, OSError) as e:
+        logger.warning(f"GraphService.dag() connection failed: {e} - returning empty graph")
+        return G
+    except Exception as e:
+        logger.warning(f"GraphService.dag() failed: {type(e).__name__}: {e} - returning empty graph")
+        return G
+    finally:
+        loop.close()
 
     # Retrieve a description of the graph
     graph_connections = dag.graph.copy()
+
+    # Handle empty graph - return early with minimal valid AGraph
+    if not graph_connections:
+        return G
     # graph_connections is a dict with format
     # {
     #   'apath/unit/port': {'some/other_unit/port', 'yet/another/unit/port'},
