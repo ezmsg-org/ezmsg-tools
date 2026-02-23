@@ -94,8 +94,7 @@ We use [`uv`](https://docs.astral.sh/uv/getting-started/installation/) for devel
 2. Fork ezmsg-tools and clone your fork to your local computer.
 3. Open a terminal and `cd` to the cloned folder.
 4. Make sure `pygraphviz` [pre-requisites](#pre-requisites) are installed.
-    * On mac: `export CFLAGS="-I $(brew --prefix graphviz)/include"` and `export LDFLAGS="-L $(brew --prefix graphviz)/lib"`
-5. `uv sync --all-extras` to create a .venv and install ezmsg-tools including dev and test dependencies.
+5. `uv sync --all-extras` to create a .venv and install ezmsg-tools including dev and test dependencies. 
 6. (Optional) Install pre-commit hooks: `uv run pre-commit install`
 7. After editing code and making commits, Run the test suite before making a PR: `uv run pytest`
 
