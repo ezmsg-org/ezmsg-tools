@@ -61,14 +61,14 @@ def get_graph(graph_address: typing.Tuple[str, int], timeout: float = 5.0) -> "p
     # where 'port' might be a pub (out) stream or a sub (input) stream.
 
     b_refresh_dag = False
+    _monitor_topics = {"VISBUFF/INPUT_SIGNAL", "SIGMON/INPUT"}
     for k, v in graph_connections.items():
-        if "VISBUFF/INPUT_SIGNAL" in v:
-            b_refresh_dag = True
-            loop.run_until_complete(
-                ez.graphserver.GraphService(address=graph_address).disconnect(k, "VISBUFF/INPUT_SIGNAL")
-            )
+        for sub in v:
+            if any(mt in sub for mt in _monitor_topics):
+                b_refresh_dag = True
+                asyncio.run(ez.graphserver.GraphService(address=graph_address).disconnect(k, sub))
     if b_refresh_dag:
-        dag = loop.run_until_complete(ez.graphserver.GraphService(address=graph_address).dag())
+        dag = asyncio.run(ez.graphserver.GraphService(address=graph_address).dag())
         graph_connections = dag.graph.copy()
 
     # Generate UUID node names

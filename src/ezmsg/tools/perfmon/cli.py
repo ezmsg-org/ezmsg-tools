@@ -279,5 +279,9 @@ def update_hist(data):
     return fig, f"Sum: {proc_sum:.2f} ms"
 
 
+def main() -> None:
+    app.run(debug=True)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
