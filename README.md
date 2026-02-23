@@ -22,6 +22,18 @@ On Mac, you should use brew:
 * `export CFLAGS="-I $(brew --prefix graphviz)/include"`
 * `export LDFLAGS="-L $(brew --prefix graphviz)/lib"`
 
+On Windows, follow the instructions [here](https://pygraphviz.github.io/documentation/stable/install.html#windows). Short version:
+
+* Download and install [Visual C/C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+* Download and install [graphviz](https://gitlab.com/graphviz/graphviz/-/releases). Get the most recent Windows x64 CMake releases.
+* Install pygraphviz in your environment:
+```
+python -m pip install --config-settings="--global-option=build_ext"
+    --config-settings="--global-option=-IC:\Program Files\Graphviz\include"
+    --config-settings="--global-option=-LC:\Program Files\Graphviz\lib"
+    pygraphviz
+```
+
 ### Release
 
 Install the latest release from pypi with: `pip install ezmsg-tools` (or `uv add ...` or `poetry add ...`).
