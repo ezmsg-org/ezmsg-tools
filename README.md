@@ -38,7 +38,27 @@ Or install the latest development version:
 
 This package includes some entrypoints with useful tools.
 
+### ezmsg-signal-monitor
+
+The pipeline must be running on a graph service exposed on the network. For example, first, run the GraphService on an open port:
+
+`ezmsg --address 127.0.0.1:25978 start`
+
+Then run your usual pipeline but make sure it attaches to the graph address by passing `graph_address=("127.0.0.1", 25978)` as a kwarg to `ez.run`.
+
+While the pipeline is running, you can run the signal-monitor tool with (`uv run`) `ezmsg-signal-monitor --graph-addr 127.0.0.1:25978`.
+
+This launches a window with graph visualized on the left. Click on a node's output box to get a live visualization on the right side of the screen plotting the data as it leaves that node. Use `a` to toggle auto-scaling. With auto-scaling off, use `-`, and `=` to zoom out and in, respectively. See the [phosphor docs](https://www.ezmsg.org/phosphor/) for the full list of keyboard shortcuts.
+
+> Currently only 2-D outputs are supported!
+
+Don't forget to shutdown your graph service when you are done, e.g.: `ezmsg --address 127.0.0.1:25978 shutdown` 
+
 ### ezmsg-performance-monitor
+
+**DEPRECATED**
+
+> ezmsg will soon includes a built-in performance monitor that can be used instead of this tool.
 
 This tool operates on logfiles created by ezmsg. Logfiles will automatically be created when running a pipeline containing nodes decorated with `ezmsg.sigproc.util.profile.profile_subpub`,
 and if the `EZMSG_LOGLEVEL` environment variable is set to DEBUG. The logfiles will be created in `~/.ezmsg/profile/ezprofiler.log` by default but this can be changed with the `EZMSG_PROFILE` environment variable.
@@ -48,27 +68,11 @@ You can decorate other nodes with `ezmsg.sigproc.util.profile.profile_subpub` to
 
 During a run with profiling enabled, the logfiles will be created in the specified location. You may wish to additionally create a graph file: (`uv run`) `EZMSG_LOGLEVEL=WARN ezmsg mermaid > ~/.ezmsg/profile/ezprofiler.mermaid`
 
-During or after a pipeline run with profiling enabled, you can run (`uv run `) `performance-monitor` to visualize the performance of the nodes in the pipeline.
+During or after a pipeline run with profiling enabled, you can run (`uv run `) `ezmsg-performance-monitor` to visualize the performance of the nodes in the pipeline.
 
 > Unlike `signal-monitor`, this tool does not require the pipeline to attach to an existing graph service because it relies exclusively on the logfile.
 
 > This performance monitor is soon to be deprecated in favor of monitoring tools built-in to ezmsg. 
-
-### ezmsg-signal-monitor
-
-The pipeline must be running on a graph service exposed on the network. For example, first, run the GraphService on an open port:
-
-`ezmsg --address 127.0.0.1:25978 start`
-
-Then run your usual pipeline but make sure it attaches to the graph address by passing `graph_address=("127.0.0.1", 25978)` as a kwarg to `ez.run`.
-
-While the pipeline is running, you can run the signal-monitor tool with (`uv run`) `signal-monitor --graph-addr 127.0.0.1:25978`.
-
-This launches a window with graph visualized on the left. Click on a node's output box to get a live visualization on the right side of the screen plotting the data as it leaves that node. Use `a` to toggle auto-scaling. With auto-scaling off, use `-`, and `=` to zoom out and in, respectively.
-
-> Currently only 2-D outputs are supported!
-
-Don't forget to shutdown your graph service when you are done, e.g.: `ezmsg --address 127.0.0.1:25978 shutdown` 
 
 ## Developers
 
