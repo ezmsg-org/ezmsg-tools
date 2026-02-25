@@ -18,8 +18,8 @@ dependencies = [
 dev = [
     "pre-commit>=4.0.0",
     "scipy>=1.14.1",
-    "ezmsg-sigproc>=2.17.0",
-    "ezmsg-simbiophys>=1.3.0",
+    "ezmsg-sigproc>=2.18.0",
+    "ezmsg-simbiophys>=1.4.1",
     {include-group = "lint"},
     {include-group = "test"},
 ]
