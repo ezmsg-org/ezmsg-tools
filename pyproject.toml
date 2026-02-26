@@ -53,7 +53,8 @@ sigmon = [
     "pygraphviz>=1.14",
     "typer>=0.15.1",
     "phosphor",
-    "pandas"
+    "pandas",
+    "ezmsg-qt",
 ]
 
 [project.scripts]

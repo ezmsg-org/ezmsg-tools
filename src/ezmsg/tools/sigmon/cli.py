@@ -5,18 +5,17 @@ import sys
 
 import numpy as np
 import typer
+from ezmsg.qt import EzDynamicSubscriber, EzGuiBridge
 from phosphor import SpectrumConfig, SpectrumWidget, SweepConfig, SweepWidget
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMainWindow, QSplitter, QWidget
 
-from ezmsg.tools.sigmon.bridge import EZBridge
 from ezmsg.tools.sigmon.dag_widget import DAGWidget
 
 logger = logging.getLogger(__name__)
 
 GRAPH_IP = "127.0.0.1"
 GRAPH_PORT = 25978
-POLL_INTERVAL_MS = 16  # ~60 Hz
 
 
 class SigmonWindow(QMainWindow):
@@ -29,9 +28,9 @@ class SigmonWindow(QMainWindow):
         self.setWindowTitle("ezmsg Signal Monitor")
         self._graph_address = graph_address
 
-        # Bridge to ezmsg graph.
-        self._bridge = EZBridge(graph_address)
-        self._bridge.start()
+        # Dynamic subscriber — switches topics when the user clicks a graph node.
+        self._data_sub = EzDynamicSubscriber(parent=self)
+        self._data_sub.connect(self._on_data)
 
         # Layout: splitter with DAG on left, plot on right.
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -48,32 +47,17 @@ class SigmonWindow(QMainWindow):
 
         self._first_message = True
 
-        # Poll timer.
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._poll_data)
-        self._timer.start(POLL_INTERVAL_MS)
-
     def _on_node_selected(self, topic: str) -> None:
-        self._bridge.subscribe(topic)
+        self._data_sub.subscribe(topic)
         self._first_message = True
 
-    def _poll_data(self) -> None:
-        msg = self._bridge.try_get()
-        if msg is None:
-            return
-
+    def _on_data(self, msg) -> None:
+        """Handle a message delivered by the dynamic subscriber."""
         if self._first_message:
             self._create_plot_widget(msg)
             self._first_message = False
 
         self._push_message(msg)
-
-        # Drain remaining messages in the deque this tick.
-        while True:
-            msg = self._bridge.try_get()
-            if msg is None:
-                break
-            self._push_message(msg)
 
     def _create_plot_widget(self, msg) -> None:
         """Detect data type from AxisArray dims and create the appropriate widget."""
@@ -141,11 +125,6 @@ class SigmonWindow(QMainWindow):
             data_2d = np.moveaxis(msg.data, freq_idx, 0).reshape(n_bins, n_channels)
             widget.push_data(data_2d.astype(np.float32))
 
-    def closeEvent(self, event) -> None:
-        self._timer.stop()
-        self._bridge.stop()
-        super().closeEvent(event)
-
 
 def _run(
     graph_addr: str = ":".join((GRAPH_IP, str(GRAPH_PORT))),
@@ -156,7 +135,8 @@ def _run(
     app = QApplication.instance() or QApplication(sys.argv)
     window = SigmonWindow(graph_address)
     window.showMaximized()
-    app.exec()
+    with EzGuiBridge(app, graph_address=graph_address):
+        app.exec()
 
 
 def main() -> None:
