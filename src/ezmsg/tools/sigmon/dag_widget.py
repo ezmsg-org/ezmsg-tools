@@ -9,6 +9,7 @@ import pandas as pd
 from PySide6.QtCore import QEvent, QObject, QSize, Signal
 from PySide6.QtGui import QMouseEvent, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -73,12 +74,6 @@ class DAGWidget(QWidget):
         # Extract node positions from the layout.
         self._node_df = pgv2pd(G)
 
-        # Render PNG for display.
-        img_path = Path(tempfile.gettempdir()) / "ezmsg-graphviz.png"
-        G.draw(img_path)
-        self._full_pixmap = QPixmap(str(img_path))
-
-        # Compute coordinate scale from SVG (points) to PNG (pixels).
         # Parse SVG viewBox for native graphviz coordinate dimensions —
         # avoids Qt's DPI-dependent SVG rasterization (wrong on Retina).
         tree = ET.parse(svg_path)
@@ -92,6 +87,22 @@ class DAGWidget(QWidget):
             # Fallback: parse width/height attributes (e.g. "400pt").
             svg_width = float("".join(c for c in root.get("width", "1") if c.isdigit() or c == "."))
             svg_height = float("".join(c for c in root.get("height", "1") if c.isdigit() or c == "."))
+
+        # Render PNG at a resolution that fills the screen width, so the
+        # image stays sharp even when the panel is expanded to full size.
+        screen = QApplication.primaryScreen()
+        if screen is not None and svg_width > 0:
+            target_px = screen.size().width() * screen.devicePixelRatio()
+            dpi = max(96, int(target_px * 72 / svg_width))
+        else:
+            dpi = 96
+        G.graph_attr["dpi"] = str(dpi)
+
+        img_path = Path(tempfile.gettempdir()) / "ezmsg-graphviz.png"
+        G.draw(img_path)
+        self._full_pixmap = QPixmap(str(img_path))
+
+        # Compute coordinate scale from SVG (points) to PNG (pixels).
         x_scale = self._full_pixmap.width() / svg_width if svg_width else 1.0
         y_scale = self._full_pixmap.height() / svg_height if svg_height else 1.0
 
