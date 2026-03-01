@@ -93,4 +93,5 @@ known-third-party = ["ezmsg"]
 
 [tool.uv.sources]
 # Uncomment to use development version of ezmsg from git
-ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "feature/sync-lowlevel-api" }
+#ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "dev" }
+ezmsg-qt = { git = "https://github.com/ezmsg-org/ezmsg-qt.git", branch = "dynamic_subscriber" }
