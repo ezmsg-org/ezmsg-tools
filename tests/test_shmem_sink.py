@@ -6,7 +6,7 @@ from pathlib import Path
 import ezmsg.core as ez
 import numpy as np
 import pytest
-from ezmsg.sigproc.synth import Clock, Oscillator
+from ezmsg.simbiophys.eeg import EEGSynth
 from ezmsg.util.messagecodec import message_log
 from ezmsg.util.messagelogger import MessageLogger
 from ezmsg.util.messages.axisarray import AxisArray
@@ -82,15 +82,13 @@ def test_shmem_change(change_type: str):
     file_path.unlink(missing_ok=True)
 
     comps = {
-        "CLOCK": Clock(dispatch_rate=100.0),
-        "SYNTH": Oscillator(n_time=10, fs=1000, n_ch=n_ch, dispatch_rate="ext_clock"),
+        "SYNTH": EEGSynth(fs=1000, n_time=10, n_ch=n_ch),
         "CRAZY": CrazyUnit(change_after=n_messages // 2, change_type=change_type),
         "SINK": ShMemCircBuff(SHMEM_NAME, 2.0, conn=None, axis="time"),
         "LOGGER": MessageLogger(output=file_path),
         "TERM": TerminateOnTotal(total=n_messages),
     }
     conns = (
-        (comps["CLOCK"].OUTPUT_SIGNAL, comps["SYNTH"].INPUT_SIGNAL),
         (comps["SYNTH"].OUTPUT_SIGNAL, comps["CRAZY"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["LOGGER"].INPUT_MESSAGE),
         (comps["LOGGER"].OUTPUT_MESSAGE, comps["TERM"].INPUT_MESSAGE),

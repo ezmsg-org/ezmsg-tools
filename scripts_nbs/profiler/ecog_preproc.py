@@ -7,9 +7,9 @@ from ezmsg.sigproc.butterworthfilter import ButterworthFilter
 from ezmsg.sigproc.downsample import Downsample
 from ezmsg.sigproc.scaler import AdaptiveStandardScaler
 from ezmsg.sigproc.slicer import Slicer
-from ezmsg.sigproc.synth import EEGSynth
 from ezmsg.sigproc.wavelets import CWT, MinPhaseMode
 from ezmsg.sigproc.window import Anchor
+from ezmsg.simbiophys.eeg import EEGSynth
 from ezmsg.util.terminate import TerminateOnTotal
 
 

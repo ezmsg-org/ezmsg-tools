@@ -28,6 +28,7 @@ lint = [
 ]
 test = [
     "pytest>=8.3.3",
+    "ezmsg-simbiophys>=1.4.1",
 ]
 docs = [
   "sphinx>=7.0",

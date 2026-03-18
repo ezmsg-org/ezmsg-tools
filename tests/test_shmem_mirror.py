@@ -9,7 +9,7 @@ from pathlib import Path
 import ezmsg.core as ez
 import numpy as np
 import pytest
-from ezmsg.sigproc.synth import Clock, Oscillator
+from ezmsg.simbiophys.eeg import EEGSynth
 from ezmsg.util.messagecodec import message_log
 from ezmsg.util.messagelogger import MessageLogger
 from ezmsg.util.messages.axisarray import AxisArray
@@ -85,15 +85,13 @@ def app(file_path) -> None:
     n_messages = int(TOTAL_DURATION * chunk_rate)
 
     comps = {
-        "CLOCK": Clock(dispatch_rate=chunk_rate),
-        "SYNTH": Oscillator(n_time=chunk_size, fs=SR, n_ch=CHANNEL_COUNT, dispatch_rate="ext_clock"),
+        "SYNTH": EEGSynth(fs=SR, n_time=chunk_size, n_ch=CHANNEL_COUNT),
         "CRAZY": CrazyUnit(change_after=n_messages // 2, change_type=change_type),
         "SINK": ShMemCircBuff(SHMEM_NAME, 2.0, conn=None, axis="time"),
         "LOGGER": MessageLogger(output=file_path),
         "TERM": TerminateOnTotal(total=n_messages),
     }
     conns = (
-        (comps["CLOCK"].OUTPUT_SIGNAL, comps["SYNTH"].INPUT_SIGNAL),
         (comps["SYNTH"].OUTPUT_SIGNAL, comps["CRAZY"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["SINK"].INPUT_SIGNAL),
         (comps["CRAZY"].OUTPUT_SIGNAL, comps["LOGGER"].INPUT_MESSAGE),
