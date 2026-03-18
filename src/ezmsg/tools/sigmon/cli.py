@@ -6,8 +6,16 @@ import sys
 import numpy as np
 import typer
 from ezmsg.qt import EzDynamicSubscriber, EzGuiBridge
-from phosphor import SpectrumConfig, SpectrumWidget, SweepConfig, SweepWidget
+from phosphor import (
+    ScatterConfig,
+    ScatterWidget,
+    SpectrumConfig,
+    SpectrumWidget,
+    SweepConfig,
+    SweepWidget,
+)
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMainWindow, QSplitter, QWidget
 
 from ezmsg.tools.sigmon.dag_widget import DAGWidget
@@ -16,6 +24,36 @@ logger = logging.getLogger(__name__)
 
 GRAPH_IP = "127.0.0.1"
 GRAPH_PORT = 25978
+
+
+def _extract_channel_meta(msg) -> tuple[list[str] | None, np.ndarray | None]:
+    """Extract channel labels and 2D positions from AxisArray channel metadata.
+
+    Returns ``(labels, positions)`` where *positions* is ``(n_channels, 2)``
+    float32 or ``None`` if no location fields are present.
+    """
+    if "ch" not in msg.dims:
+        return None, None
+
+    ch_axis = msg.get_axis("ch")
+    ch_data = getattr(ch_axis, "data", None)
+    if ch_data is None or ch_data.dtype.names is None:
+        return None, None
+
+    # Labels
+    labels = None
+    if "label" in ch_data.dtype.names:
+        labels = [str(v) for v in ch_data["label"]]
+
+    # Positions — need at least x and y
+    positions = None
+    if "x" in ch_data.dtype.names and "y" in ch_data.dtype.names:
+        x = ch_data["x"].astype(np.float32)
+        y = ch_data["y"].astype(np.float32)
+        if np.any(x != 0) or np.any(y != 0):
+            positions = np.column_stack([x, y])
+
+    return labels, positions
 
 
 class SigmonWindow(QMainWindow):
@@ -47,13 +85,29 @@ class SigmonWindow(QMainWindow):
 
         self._first_message = True
 
+        # Channel metadata cached from the first message of each topic.
+        self._channel_labels: list[str] | None = None
+        self._channel_positions: np.ndarray | None = None
+        # Cached parameters for rebuilding the primary (sweep/spectrum) widget.
+        self._primary_config: SweepConfig | SpectrumConfig | None = None
+        self._showing_scatter = False
+
+        # Hotkey: "M" toggles scatter/map view (only effective when positions exist).
+        shortcut = QShortcut(QKeySequence("M"), self)
+        shortcut.activated.connect(self._toggle_scatter)
+
     def _on_node_selected(self, topic: str) -> None:
         self._data_sub.subscribe(topic)
         self._first_message = True
+        self._channel_labels = None
+        self._channel_positions = None
+        self._primary_config = None
+        self._showing_scatter = False
 
     def _on_data(self, msg) -> None:
         """Handle a message delivered by the dynamic subscriber."""
         if self._first_message:
+            self._channel_labels, self._channel_positions = _extract_channel_meta(msg)
             self._create_plot_widget(msg)
             self._first_message = False
 
@@ -61,6 +115,8 @@ class SigmonWindow(QMainWindow):
 
     def _create_plot_widget(self, msg) -> None:
         """Detect data type from AxisArray dims and create the appropriate widget."""
+        labels = self._channel_labels
+
         if "time" in msg.dims:
             time_axis = msg.get_axis("time")
             srate = 1.0 / time_axis.gain
@@ -68,7 +124,11 @@ class SigmonWindow(QMainWindow):
             n_samples = msg.shape[time_idx]
             n_channels = msg.data.size // n_samples
 
-            config = SweepConfig(n_channels=n_channels, srate=srate)
+            config = SweepConfig(
+                n_channels=n_channels,
+                srate=srate,
+                channel_labels=labels,
+            )
             widget = SweepWidget(config)
 
         elif "freq" in msg.dims:
@@ -78,16 +138,50 @@ class SigmonWindow(QMainWindow):
             srate = 2.0 * freq_axis.gain * n_bins
             n_channels = msg.data.size // n_bins
 
-            config = SpectrumConfig(n_channels=n_channels, srate=srate, n_bins=n_bins)
+            config = SpectrumConfig(
+                n_channels=n_channels,
+                srate=srate,
+                n_bins=n_bins,
+                channel_labels=labels,
+            )
             widget = SpectrumWidget(config)
 
         else:
             logger.warning("Unknown AxisArray dims: %s — defaulting to sweep", msg.dims)
-            # Fallback: treat first axis as time-like.
             n_samples = msg.shape[0]
             n_channels = msg.data.size // n_samples if n_samples > 0 else 1
-            config = SweepConfig(n_channels=n_channels, srate=1000.0)
+            config = SweepConfig(
+                n_channels=n_channels,
+                srate=1000.0,
+                channel_labels=labels,
+            )
             widget = SweepWidget(config)
+
+        self._primary_config = config
+        self._showing_scatter = False
+        self._replace_plot_widget(widget)
+
+    def _toggle_scatter(self) -> None:
+        """Toggle between primary (sweep/spectrum) view and scatter/map view."""
+        if self._channel_positions is None:
+            return  # no locations — nothing to toggle
+
+        if self._showing_scatter:
+            # Switch back to primary widget.
+            if isinstance(self._primary_config, SweepConfig):
+                widget = SweepWidget(self._primary_config)
+            elif isinstance(self._primary_config, SpectrumConfig):
+                widget = SpectrumWidget(self._primary_config)
+            else:
+                return
+            self._showing_scatter = False
+        else:
+            config = ScatterConfig(
+                positions=self._channel_positions,
+                channel_labels=self._channel_labels,
+            )
+            widget = ScatterWidget(config)
+            self._showing_scatter = True
 
         self._replace_plot_widget(widget)
 
@@ -96,10 +190,6 @@ class SigmonWindow(QMainWindow):
         sizes = self._splitter.sizes()
         old = self._splitter.widget(1)
         if old is not None:
-            # Stop the rendercanvas scheduler before destroying the widget,
-            # otherwise it keeps calling update() on a deleted C++ object.
-            if hasattr(old, "canvas"):
-                old.canvas.close()
             old.setParent(None)
             old.deleteLater()
         self._splitter.insertWidget(1, widget)
@@ -123,6 +213,19 @@ class SigmonWindow(QMainWindow):
             n_bins = msg.shape[freq_idx]
             n_channels = msg.data.size // n_bins if n_bins > 0 else 1
             data_2d = np.moveaxis(msg.data, freq_idx, 0).reshape(n_bins, n_channels)
+            widget.push_data(data_2d.astype(np.float32))
+
+        elif isinstance(widget, ScatterWidget):
+            # Scatter expects (n_channels,) or (n_samples, n_channels).
+            if len(msg.shape) > 1:
+                targ_idx = 0
+                if "time" in msg.dims or "freq" in msg.dims:
+                    targ_idx = msg.get_axis_idx("time") if "time" in msg.dims else msg.get_axis_idx("freq")
+                n_items = msg.shape[targ_idx]
+                n_channels = msg.data.size // n_items if n_items > 0 else 1
+                data_2d = np.moveaxis(msg.data, targ_idx, 0).reshape(n_items, n_channels)
+            else:
+                data_2d = msg.data.reshape(1, msg.data.size)
             widget.push_data(data_2d.astype(np.float32))
 
 
