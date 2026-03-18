@@ -6,18 +6,20 @@ authors = [
 ]
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.10.15"
+requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
   "ezmsg>=3.6.2",
   "numpy>=1.26.0",
+  "typer>=0.24.1",
 ]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.0.0",
     "scipy>=1.14.1",
-    "ezmsg-sigproc>=2.8.0",
+    "ezmsg-sigproc>=2.18.0",
+    "ezmsg-simbiophys>=1.4.1",
     {include-group = "lint"},
     {include-group = "test"},
 ]
@@ -25,7 +27,6 @@ lint = [
     "ruff>=0.12.9",
 ]
 test = [
-    "ezmsg-sigproc>=1.6.0",
     "pytest>=8.3.3",
 ]
 docs = [
@@ -48,14 +49,17 @@ perfmon = [
     "ezmsg-baseproc>=1.1.0",
 ]
 sigmon = [
-    "pygame>=2.6.1",
+    "PySide6>=6.7",
     "pygraphviz>=1.14",
     "typer>=0.15.1",
+    "phosphor>=0.2",
+    "pandas",
+    "ezmsg-qt",
 ]
 
 [project.scripts]
-ezmsg-performance-monitor = "ezmsg.tools.perfmon.main:main"
-ezmsg-signal-monitor = "ezmsg.tools.sigmon.main:main"
+ezmsg-performance-monitor = "ezmsg.tools.perfmon.cli:main"
+ezmsg-signal-monitor = "ezmsg.tools.sigmon.cli:main"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -89,4 +93,5 @@ known-third-party = ["ezmsg"]
 
 [tool.uv.sources]
 # Uncomment to use development version of ezmsg from git
-ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "dev" }
+#ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "dev" }
+ezmsg-qt = { git = "https://github.com/ezmsg-org/ezmsg-qt.git", branch = "dynamic_subscriber" }
