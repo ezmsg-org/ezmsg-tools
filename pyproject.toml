@@ -53,7 +53,7 @@ sigmon = [
     "PySide6>=6.7",
     "pygraphviz>=1.14",
     "typer>=0.15.1",
-    "phosphor>=0.3",
+    "phosphor>=0.4",
     "pandas",
     "ezmsg-qt",
 ]
