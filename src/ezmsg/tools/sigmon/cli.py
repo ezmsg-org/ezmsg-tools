@@ -5,7 +5,7 @@ import sys
 
 import numpy as np
 import typer
-from ezmsg.qt import EzDynamicSubscriber, EzGuiBridge
+from ezmsg.qt import EzSession, EzSubscriber
 from phosphor import (
     ScatterConfig,
     ScatterWidget,
@@ -60,6 +60,7 @@ class SigmonWindow(QMainWindow):
     def __init__(
         self,
         graph_address: tuple[str, int],
+        session: EzSession,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -67,7 +68,7 @@ class SigmonWindow(QMainWindow):
         self._graph_address = graph_address
 
         # Dynamic subscriber — switches topics when the user clicks a graph node.
-        self._data_sub = EzDynamicSubscriber(parent=self)
+        self._data_sub = EzSubscriber(topic=None, parent=self, session=session)
         self._data_sub.connect(self._on_data)
 
         # Layout: splitter with DAG on left, plot on right.
@@ -97,7 +98,9 @@ class SigmonWindow(QMainWindow):
         shortcut.activated.connect(self._toggle_scatter)
 
     def _on_node_selected(self, topic: str) -> None:
-        self._data_sub.subscribe(topic)
+        # logger.debug("Switching to topic: %s", topic)
+        print(f"Switching to topic: {topic}")
+        self._data_sub.set_topic(topic)
         self._first_message = True
         self._channel_labels = None
         self._channel_positions = None
@@ -146,6 +149,13 @@ class SigmonWindow(QMainWindow):
             )
             widget = SpectrumWidget(config)
 
+        elif "ch" in msg.dims and self._channel_positions is not None:
+            # ch but no time or freq; assume scatter
+            config = ScatterConfig(
+                positions=self._channel_positions,
+                channel_labels=labels,
+            )
+            widget = ScatterWidget(config)
         else:
             logger.warning("Unknown AxisArray dims: %s — defaulting to sweep", msg.dims)
             n_samples = msg.shape[0]
@@ -158,7 +168,7 @@ class SigmonWindow(QMainWindow):
             widget = SweepWidget(config)
 
         self._primary_config = config
-        self._showing_scatter = False
+        self._showing_scatter = isinstance(widget, ScatterWidget)
         self._replace_plot_widget(widget)
 
     def _toggle_scatter(self) -> None:
@@ -190,6 +200,10 @@ class SigmonWindow(QMainWindow):
         sizes = self._splitter.sizes()
         old = self._splitter.widget(1)
         if old is not None:
+            # Stop the render loop before destroying the Qt widget,
+            # otherwise fastplotlib keeps painting a deleted canvas.
+            if hasattr(old, "_figure"):
+                old._figure.close()
             old.setParent(None)
             old.deleteLater()
         self._splitter.insertWidget(1, widget)
@@ -236,9 +250,10 @@ def _run(
     graph_address = (graph_ip, int(graph_port_str))
 
     app = QApplication.instance() or QApplication(sys.argv)
-    window = SigmonWindow(graph_address)
+    session = EzSession(graph_address=graph_address)
+    window = SigmonWindow(graph_address, session)
     window.showMaximized()
-    with EzGuiBridge(app, graph_address=graph_address):
+    with session:
         app.exec()
 
 
