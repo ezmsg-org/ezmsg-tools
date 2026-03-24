@@ -57,6 +57,12 @@ sigmon = [
     "pandas",
     "ezmsg-qt",
 ]
+viewer = [
+    "PySide6>=6.7",
+    "typer>=0.15.1",
+    "phosphor>=0.4",
+    "ezmsg-qt",
+]
 
 [project.scripts]
 ezmsg-performance-monitor = "ezmsg.tools.perfmon.cli:main"

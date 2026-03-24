@@ -98,6 +98,8 @@ class SigmonWindow(QMainWindow):
         shortcut.activated.connect(self._toggle_scatter)
 
     def _on_node_selected(self, topic: str) -> None:
+        # logger.debug("Switching to topic: %s", topic)
+        print(f"Switching to topic: {topic}")
         self._data_sub.set_topic(topic)
         self._first_message = True
         self._channel_labels = None
@@ -147,6 +149,13 @@ class SigmonWindow(QMainWindow):
             )
             widget = SpectrumWidget(config)
 
+        elif "ch" in msg.dims and self._channel_positions is not None:
+            # ch but no time or freq; assume scatter
+            config = ScatterConfig(
+                positions=self._channel_positions,
+                channel_labels=labels,
+            )
+            widget = ScatterWidget(config)
         else:
             logger.warning("Unknown AxisArray dims: %s — defaulting to sweep", msg.dims)
             n_samples = msg.shape[0]
@@ -159,7 +168,7 @@ class SigmonWindow(QMainWindow):
             widget = SweepWidget(config)
 
         self._primary_config = config
-        self._showing_scatter = False
+        self._showing_scatter = isinstance(widget, ScatterWidget)
         self._replace_plot_widget(widget)
 
     def _toggle_scatter(self) -> None:
@@ -191,6 +200,10 @@ class SigmonWindow(QMainWindow):
         sizes = self._splitter.sizes()
         old = self._splitter.widget(1)
         if old is not None:
+            # Stop the render loop before destroying the Qt widget,
+            # otherwise fastplotlib keeps painting a deleted canvas.
+            if hasattr(old, "_figure"):
+                old._figure.close()
             old.setParent(None)
             old.deleteLater()
         self._splitter.insertWidget(1, widget)
