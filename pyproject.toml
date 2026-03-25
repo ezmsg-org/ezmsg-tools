@@ -53,15 +53,16 @@ sigmon = [
     "PySide6>=6.7",
     "pygraphviz>=1.14",
     "typer>=0.15.1",
-    "phosphor>=0.4",
+    "ezmsg-qt>=0.2.0",
+    "phosphor>=0.5.0",
     "pandas",
-    "ezmsg-qt",
+    "ezmsg-qt>=0.2.0",
 ]
 viewer = [
     "PySide6>=6.7",
     "typer>=0.15.1",
-    "phosphor>=0.4",
-    "ezmsg-qt",
+    "phosphor>=0.5.0",
+    "ezmsg-qt>=0.2.0",
 ]
 
 [project.scripts]
@@ -101,4 +102,3 @@ known-third-party = ["ezmsg"]
 [tool.uv.sources]
 # Uncomment to use development version of ezmsg from git
 #ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "dev" }
-ezmsg-qt = { git = "https://github.com/ezmsg-org/ezmsg-qt.git", branch = "dynamic_subscriber" }
