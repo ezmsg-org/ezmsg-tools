@@ -19,6 +19,12 @@ Upon receiving a data message, its metadata is checked, and if it does not match
 
 The other half must monitor the metadata shared memory to see if it changes, and if it does then it must recreate
 the data shared memory buffer reader at the new location.
+
+Finally, there is a third piece of shared memory carrying everything about the AxisArray that does not fit in the
+fixed-size metadata header: the non-buffered coordinate axes (e.g. a `ch` axis holding per-channel bank/elec/label),
+axis units, and the message `attrs`. It lives at shorten_shmem_name(f"{shmem_name}/meta{meta_generation}") and is
+republished -- under a fresh generation, following the same pattern as the data buffer -- only when that metadata
+actually changes, which for a typical stream means once per session. See the .aux_meta module for the wire format.
 """
 
 import asyncio
@@ -34,6 +40,8 @@ import ezmsg.core as ez
 import numpy as np
 import numpy.typing as npt
 from ezmsg.util.messages.axisarray import AxisArray, AxisBase
+
+from .aux_meta import attrs_equal, axes_equal, encode_aux
 
 UINT64_SIZE = 8
 BYTEORDER = "little"
@@ -70,6 +78,13 @@ def shorten_shmem_name(long_name: str) -> str:
 
 MAXKEYLEN = 1024
 
+# Bumped when ShmemArrMeta's _fields_ change. New fields are only ever appended,
+# so that a writer from an older build -- which sizes its segment to its own,
+# shorter struct but gets a page-rounded allocation anyway -- leaves this field
+# reading 0. A reader seeing 0 knows it is talking to a pre-versioning writer and
+# that every field past `write_index` is meaningless rather than merely stale.
+SHMEM_META_STRUCT_VERSION = 1
+
 
 class ShmemArrMeta(ctypes.Structure):
     """
@@ -101,6 +116,13 @@ class ShmemArrMeta(ctypes.Structure):
         ("_key_bytes", ctypes.c_byte * MAXKEYLEN),
         ("_key_len", ctypes.c_uint32),
         ("write_index", ctypes.c_uint64),
+        # --- appended in struct version 1; see SHMEM_META_STRUCT_VERSION ---
+        ("struct_version", ctypes.c_uint32),
+        # 0 = no metadata blob published yet. Otherwise names the segment at
+        # shorten_shmem_name(f"{shmem_name}/meta{meta_generation}").
+        ("meta_generation", ctypes.c_uint32),
+        # Exact length of the blob; the segment itself is page-rounded.
+        ("aux_nbytes", ctypes.c_uint32),
     ]
 
     @property
@@ -127,6 +149,16 @@ class ShMemCircBuffState(ez.State):
     buffer_shmem: typing.Optional[SharedMemory] = None
     buffer_arr: typing.Optional[npt.NDArray] = None
     meta_hash: int = -1
+    # Segment holding the serialized static metadata (see .aux_meta).
+    aux_shmem: typing.Optional[SharedMemory] = None
+    # The (dims, axes, attrs, key) we last encoded, held by reference for the
+    # per-message identity check in _update_aux_if_needed.
+    last_aux_src: typing.Optional[tuple] = None
+    # ...and the bytes they encoded to, so a producer that rebuilds equal
+    # metadata every message cannot cause a republish.
+    last_aux_blob: typing.Optional[bytes] = None
+    # attrs keys dropped as non-plain, remembered so we warn once, not per message.
+    warned_dropped_attrs: typing.Optional[frozenset] = None
 
 
 def _persist_create_shmem(name: str, size: int) -> SharedMemory:
@@ -201,6 +233,7 @@ class ShMemCircBuff(ez.Unit):
 
     async def shutdown(self) -> None:
         self._cleanup_buffer()
+        self._cleanup_aux()
         self._cleanup_meta()
         if self.SETTINGS.conn is not None:
             self.SETTINGS.conn.send("close")
@@ -215,6 +248,7 @@ class ShMemCircBuff(ez.Unit):
         if self.SETTINGS.conn is not None:
             self.SETTINGS.conn.send("meta cleanup")
 
+        self._cleanup_aux()
         self.STATE.meta_struct = None
 
         if self.STATE.meta_shmem is not None:
@@ -225,6 +259,21 @@ class ShMemCircBuff(ez.Unit):
                 pass
             del self.STATE.meta_shmem
         self.STATE.meta_shmem = None
+
+    def _cleanup_aux(self):
+        """
+        Release the static-metadata segment, if one is published.
+
+        Also forgets the change-detection state, so the next message republishes
+        from scratch -- which is what we want after a name change or a shutdown /
+        restart, where a reader may be starting fresh too.
+        """
+        self._cleanup_aux_segment()
+        self.STATE.last_aux_src = None
+        self.STATE.last_aux_blob = None
+        if self.STATE.meta_struct is not None:
+            self.STATE.meta_struct.meta_generation = 0
+            self.STATE.meta_struct.aux_nbytes = 0
 
     def _cleanup_buffer(self):
         """
@@ -274,9 +323,86 @@ class ShMemCircBuff(ez.Unit):
         # Build the metadata structure.
         self.STATE.meta_struct = ShmemArrMeta.from_buffer(self.STATE.meta_shmem.buf)
         self.STATE.meta_struct.bvalid = False
+        self.STATE.meta_struct.struct_version = SHMEM_META_STRUCT_VERSION
+        self.STATE.meta_struct.meta_generation = 0
+        self.STATE.meta_struct.aux_nbytes = 0
         if reset_generation:
             self.STATE.meta_struct.buffer_generation = -1
         # We will wait for a data packet before we modify the remaining fields.
+
+    def _update_aux_if_needed(self, msg: AxisArray) -> bool:
+        """
+        Republish the static metadata segment if this message's metadata differs
+        from what is currently published.
+
+        Runs on every message, so the common path must be cheap. It is three
+        tiers, each only reached when the one before it is inconclusive:
+
+        1. Identity/value comparison of (dims, axes, attrs, key) against what we
+           last encoded. Costs a handful of pointer comparisons when the producer
+           passes its axes through untouched, which is the normal case.
+        2. Encode, and compare the bytes to what is published. This absorbs
+           producers that rebuild equal metadata every message -- they cost an
+           encode, but never a republish, so a reader is never woken for nothing.
+        3. Allocate a new generation's segment and point the header at it.
+
+        Returns True if a new generation was published.
+        """
+        src = (msg.dims, msg.axes, msg.attrs, msg.key)
+        last = self.STATE.last_aux_src
+        if last is not None:
+            last_dims, last_axes, last_attrs, last_key = last
+            if (
+                msg.key == last_key
+                and msg.dims == last_dims
+                and axes_equal(msg.axes, last_axes)
+                and attrs_equal(msg.attrs, last_attrs)
+            ):
+                return False
+
+        blob, dropped = encode_aux(msg.dims, msg.axes, msg.attrs, msg.key, self.SETTINGS.axis)
+        if dropped:
+            dropped_set = frozenset(dropped)
+            if self.STATE.warned_dropped_attrs != dropped_set:
+                self.STATE.warned_dropped_attrs = dropped_set
+                ez.logger.warning(
+                    f"ShMemCircBuff dropped non-plain attrs from the shmem metadata: {sorted(dropped_set)}. "
+                    "Only str/bytes/number/bool/None, non-object ndarrays, and containers of those are transported."
+                )
+
+        # Hold the references that produced this blob whether or not we go on to
+        # publish it, so an unchanged-but-rebuilt message is only encoded once.
+        self.STATE.last_aux_src = src
+        if blob == self.STATE.last_aux_blob:
+            return False
+        self.STATE.last_aux_blob = blob
+
+        self._cleanup_aux_segment()
+        # 0 means "nothing published", so skip it when the uint32 wraps.
+        generation = (self.STATE.meta_struct.meta_generation + 1) % (2**32) or 1
+        aux_name = shorten_shmem_name(self.SETTINGS.shmem_name + "/meta" + str(generation))
+        self.STATE.aux_shmem = _persist_create_shmem(aux_name, len(blob))
+        self.STATE.aux_shmem.buf[: len(blob)] = blob
+
+        # Order matters: the segment is fully written before the header names it,
+        # so a reader never sees a generation it cannot completely read.
+        self.STATE.meta_struct.aux_nbytes = len(blob)
+        self.STATE.meta_struct.meta_generation = generation
+
+        if self.SETTINGS.conn is not None:
+            self.SETTINGS.conn.send("aux updated")
+        return True
+
+    def _cleanup_aux_segment(self) -> None:
+        """Release just the published segment, keeping change-detection state."""
+        if self.STATE.aux_shmem is not None:
+            self.STATE.aux_shmem.close()
+            try:
+                self.STATE.aux_shmem.unlink()
+            except FileNotFoundError:
+                pass
+            del self.STATE.aux_shmem
+        self.STATE.aux_shmem = None
 
     def _n_frames_for_axis(self, axis: AxisBase) -> int:
         """
@@ -407,6 +533,12 @@ class ShMemCircBuff(ez.Unit):
         # Check if we need to update the metadata, and if so, reset the buffer.
         if self._update_meta_if_needed(msg):
             self._reset_buffer(msg)
+
+        # Independently of the buffer: republish the static metadata if it moved.
+        # The two are deliberately not coupled -- a `ch` axis can gain labels
+        # without the buffer's shape changing, and the buffer can be rebuilt
+        # (e.g. dtype change) with the channel identities untouched.
+        self._update_aux_if_needed(msg)
 
         n_samples = data.shape[0]
         write_stop = self.STATE.meta_struct.write_index + n_samples
