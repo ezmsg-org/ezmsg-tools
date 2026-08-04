@@ -7,6 +7,7 @@ costs nothing when it is not changing -- a republish per message would defeat th
 purpose.
 """
 
+import ctypes
 import os
 import tempfile
 import threading
@@ -317,3 +318,119 @@ def test_mirror_without_metadata_is_not_broken():
     assert mirror.attrs is None
     assert not mirror.metadata_available
     mirror.disconnect()
+
+
+# --------------------------------------------------- N-D + versioning -------
+
+
+class Envelope(ez.Unit):
+    """Emits a 3-D (time, ch, metric) envelope.
+
+    The shape ``ezmsg.sigproc.binned_aggregate.BinnedAggregate`` produces with a
+    tuple ``operation`` -- the display path's reason for wanting N-D here.
+    """
+
+    OUTPUT_SIGNAL = ez.OutputStream(AxisArray)
+
+    @ez.publisher(OUTPUT_SIGNAL)
+    async def generate(self) -> typing.AsyncGenerator:
+        import asyncio
+
+        n_ch, n_metric = 8, 2
+        for i in range(200):
+            data = np.zeros((10, n_ch, n_metric), dtype=np.float32)
+            data[..., 0] = -float(i)  # min
+            data[..., 1] = float(i)  # max
+            yield (
+                self.OUTPUT_SIGNAL,
+                AxisArray(
+                    data=data,
+                    dims=["time", "ch", "metric"],
+                    axes={
+                        "time": AxisArray.TimeAxis(fs=1000.0, offset=i * 0.01),
+                        "ch": make_ch_axis(n_ch),
+                        "metric": AxisArray.CoordinateAxis(data=np.array(["min", "max"]), dims=["metric"], unit=""),
+                    },
+                    key="envelope",
+                ),
+            )
+            await asyncio.sleep(0.01)
+        raise ez.NormalTermination
+
+
+@pytest.mark.skipif("CI" in os.environ, reason="Timing-sensitive; matches the existing mirror test.")
+def test_three_dimensional_message_survives_the_boundary():
+    """A (time, ch, metric) envelope must cross shmem intact.
+
+    ShMemCircBuff has always been N-D -- frame_shape is every dim but the
+    buffered one -- so an envelope needs no flattening into 2-D. This pins that,
+    including that the metric axis's labels arrive over the metadata channel.
+    """
+    shmem_name = f"aux3d{os.getpid()}"
+
+    mirror = EZShmMirror()
+    mirror.connect(shmem_name)
+
+    comps = {"SRC": Envelope(), "SINK": ShMemCircBuff(shmem_name, 2.0, conn=None, axis="time")}
+    conns = ((comps["SRC"].OUTPUT_SIGNAL, comps["SINK"].INPUT_SIGNAL),)
+    thread = threading.Thread(target=lambda: ez.run(components=comps, connections=conns))
+    thread.start()
+
+    shapes, metric_labels, samples = [], None, None
+    deadline = time.time() + 30.0
+    while thread.is_alive() and time.time() < deadline:
+        chunk, _ = mirror.auto_view()
+        if chunk.size:
+            shapes.append(chunk.shape)
+            samples = chunk.copy()
+        axes = mirror.axes
+        if axes is not None and "metric" in axes:
+            metric_labels = list(axes["metric"]["data"])
+        time.sleep(0.005)
+    thread.join(timeout=10.0)
+
+    assert shapes, "no data crossed the boundary"
+    # (n_samples, n_ch, n_metric) -- the trailing dims came through untouched.
+    assert all(s[1:] == (8, 2) for s in shapes), shapes
+    # min entries are negative, max entries positive, so the metric axis did not
+    # get transposed or collapsed on the way.
+    assert (samples[..., 0] <= 0).all()
+    assert (samples[..., 1] >= 0).all()
+    assert metric_labels == ["min", "max"]
+
+    mirror.disconnect()
+
+
+def test_reader_rejects_a_foreign_header_loudly():
+    """A header this build cannot read must raise, not decode to nonsense."""
+    from multiprocessing.shared_memory import SharedMemory
+
+    from ezmsg.tools.shmem.shmem import (
+        SHMEM_META_MAGIC,
+        SHMEM_META_STRUCT_VERSION,
+        ShmemArrMeta,
+        ShmemVersionError,
+        shorten_shmem_name,
+    )
+
+    name = f"badhdr{os.getpid()}"
+    shm = SharedMemory(shorten_shmem_name(name), create=True, size=ctypes.sizeof(ShmemArrMeta))
+    try:
+        meta = ShmemArrMeta.from_buffer(shm.buf)
+
+        # No magic at all: a segment from a build that predates the check, or an
+        # unrelated segment whose name collided.
+        meta.magic = 0
+        with pytest.raises(ShmemVersionError, match="does not carry this build's header"):
+            EZShmMirror(name)
+
+        # Our magic, a version we don't speak.
+        meta.magic = SHMEM_META_MAGIC
+        meta.struct_version = SHMEM_META_STRUCT_VERSION + 1
+        with pytest.raises(ShmemVersionError, match="Upgrade both ends together"):
+            EZShmMirror(name)
+
+        del meta
+    finally:
+        shm.close()
+        shm.unlink()

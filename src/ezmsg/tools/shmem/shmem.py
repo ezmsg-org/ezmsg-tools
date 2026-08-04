@@ -78,12 +78,27 @@ def shorten_shmem_name(long_name: str) -> str:
 
 MAXKEYLEN = 1024
 
-# Bumped when ShmemArrMeta's _fields_ change. New fields are only ever appended,
-# so that a writer from an older build -- which sizes its segment to its own,
-# shorter struct but gets a page-rounded allocation anyway -- leaves this field
-# reading 0. A reader seeing 0 knows it is talking to a pre-versioning writer and
-# that every field past `write_index` is meaningless rather than merely stale.
+# Sentinel at offset 0 of every metadata segment ("EZMS"). Distinguishes one of
+# our headers from an unrelated segment that happens to collide on a name, and
+# from a header written by a build old enough to predate this check.
+SHMEM_META_MAGIC = 0x455A4D53
+
+# Bumped on any change to ShmemArrMeta._fields_ or to the .aux_meta wire format.
+#
+# The two halves of a shmem link must be the same version -- there is no
+# compatibility shim, by choice: the layouts are an internal detail between two
+# processes we deploy together, and carrying forward every past field shape would
+# cost more than it is worth. What we do owe is a loud failure rather than a
+# quiet one, so the reader validates the magic and version up front and raises
+# instead of misreading a header it does not understand.
 SHMEM_META_STRUCT_VERSION = 1
+
+
+class ShmemVersionError(RuntimeError):
+    """A shmem segment was written by an incompatible build.
+
+    Not recoverable and not transient: upgrade both ends together.
+    """
 
 
 class ShmemArrMeta(ctypes.Structure):
@@ -106,6 +121,10 @@ class ShmemArrMeta(ctypes.Structure):
 
     _pack_ = 1
     _fields_ = [
+        # magic and struct_version lead so a reader can validate the layout
+        # before it trusts a single field that follows.
+        ("magic", ctypes.c_uint32),
+        ("struct_version", ctypes.c_uint32),
         ("bvalid", ctypes.c_bool),
         ("dtype", ctypes.c_char),
         ("srate", ctypes.c_double),
@@ -116,8 +135,6 @@ class ShmemArrMeta(ctypes.Structure):
         ("_key_bytes", ctypes.c_byte * MAXKEYLEN),
         ("_key_len", ctypes.c_uint32),
         ("write_index", ctypes.c_uint64),
-        # --- appended in struct version 1; see SHMEM_META_STRUCT_VERSION ---
-        ("struct_version", ctypes.c_uint32),
         # 0 = no metadata blob published yet. Otherwise names the segment at
         # shorten_shmem_name(f"{shmem_name}/meta{meta_generation}").
         ("meta_generation", ctypes.c_uint32),
@@ -323,6 +340,7 @@ class ShMemCircBuff(ez.Unit):
         # Build the metadata structure.
         self.STATE.meta_struct = ShmemArrMeta.from_buffer(self.STATE.meta_shmem.buf)
         self.STATE.meta_struct.bvalid = False
+        self.STATE.meta_struct.magic = SHMEM_META_MAGIC
         self.STATE.meta_struct.struct_version = SHMEM_META_STRUCT_VERSION
         self.STATE.meta_struct.meta_generation = 0
         self.STATE.meta_struct.aux_nbytes = 0

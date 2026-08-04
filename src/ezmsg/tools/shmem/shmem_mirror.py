@@ -18,7 +18,14 @@ import numpy as np
 import numpy.typing as npt
 
 from .aux_meta import decode_aux
-from .shmem import SHMEM_META_STRUCT_VERSION, ShmemArrMeta, ShMemCircBuffState, shorten_shmem_name
+from .shmem import (
+    SHMEM_META_MAGIC,
+    SHMEM_META_STRUCT_VERSION,
+    ShmemArrMeta,
+    ShMemCircBuffState,
+    ShmemVersionError,
+    shorten_shmem_name,
+)
 
 CONNECT_RETRY_INTERVAL = 0.5
 
@@ -46,8 +53,6 @@ class EZShmMirror:
         # from. 0 means we have not read one; the writer never publishes gen 0.
         self._aux: typing.Optional[dict] = None
         self._aux_generation: int = 0
-        # Remembered so an undecodable blob is reported once, not every poll.
-        self._aux_error_generation: int = 0
         # If shmem_name is None then this will simply not connect to anything.
         self.connect(shmem_name)
 
@@ -92,9 +97,9 @@ class EZShmMirror:
         normally ``"time"``) appears here with only its static descriptors: its
         position along the stream lives in the ring's write index, not here.
 
-        None means either that the metadata has not arrived yet or that the
-        writer predates this feature; poll again or check
-        :attr:`metadata_available`.
+        None means the writer has not published yet -- poll again. A writer this
+        build cannot read raises :class:`ShmemVersionError` on connect rather
+        than showing up as None here.
         """
         self._refresh_aux()
         return None if self._aux is None else self._aux["axes"]
@@ -143,22 +148,21 @@ class EZShmMirror:
         self._mirror_state.aux_shmem = None
         self._aux = None
         self._aux_generation = 0
-        self._aux_error_generation = 0
 
     def _refresh_aux(self) -> None:
         """Attach to and decode the metadata segment if the writer bumped it.
 
         Cheap and idempotent: in the steady state this is one integer compare,
         so the properties above can call it unconditionally.
+
+        The header was already validated on connect, so an undecodable blob here
+        is a bug rather than a version skew, and propagates.
         """
         meta = self._mirror_state.meta_struct
         if meta is None:
             return
-        if meta.struct_version < SHMEM_META_STRUCT_VERSION:
-            # Writer predates the metadata segment. Nothing to read, ever.
-            return
         generation = int(meta.meta_generation)
-        if generation == 0 or generation == self._aux_generation or generation == self._aux_error_generation:
+        if generation == 0 or generation == self._aux_generation:
             return
 
         nbytes = int(meta.aux_nbytes)
@@ -172,16 +176,10 @@ class EZShmMirror:
             return
 
         try:
-            blob = bytes(shm.buf[:nbytes])
-            payload = decode_aux(blob)
-        except ValueError as e:
-            # A blob we cannot read is not a transient condition -- the writer
-            # is a version we do not speak. Remember the generation so we
-            # complain once rather than on every poll.
-            self._aux_error_generation = generation
+            payload = decode_aux(bytes(shm.buf[:nbytes]))
+        except ValueError:
             shm.close()
-            print(f"Ignoring shmem metadata generation {generation}: {e}")
-            return
+            raise
 
         # Only now release the previous segment, so a decode failure above
         # leaves the last good metadata intact.
@@ -243,6 +241,42 @@ class EZShmMirror:
         except FileNotFoundError:
             self._mirror_state.meta_struct = None
             self._mirror_state.meta_shmem = None
+            return
+        self._validate_header()
+
+    def _validate_header(self) -> None:
+        """Reject a header this build cannot read, before trusting any field.
+
+        The two ends of a shmem link must be the same version. That is a
+        deliberate simplification -- the layout is private between two processes
+        we deploy together -- and it makes this check the thing that has to be
+        reliable, since the failure it prevents is reading a differently-shaped
+        struct as though it were ours and plotting the result.
+
+        Raises rather than returning a status because there is nothing a caller
+        can usefully do: it is not transient, and it will not fix itself on the
+        next poll.
+        """
+        meta = self._mirror_state.meta_struct
+        if meta is None:
+            return
+        magic, version = int(meta.magic), int(meta.struct_version)
+        if magic == SHMEM_META_MAGIC and version == SHMEM_META_STRUCT_VERSION:
+            return
+
+        self._cleanup_meta()
+        if magic != SHMEM_META_MAGIC:
+            raise ShmemVersionError(
+                f"Shared memory segment for {self._shmem_name!r} does not carry this build's header "
+                f"(magic 0x{magic:08X}, expected 0x{SHMEM_META_MAGIC:08X}). Either it was written by an "
+                f"ezmsg-tools too old to stamp one, or the name collides with an unrelated segment. "
+                f"The writer and reader of a shmem link must be the same ezmsg-tools version."
+            )
+        raise ShmemVersionError(
+            f"Shared memory segment for {self._shmem_name!r} was written by ezmsg-tools with shmem struct "
+            f"version {version}; this build speaks version {SHMEM_META_STRUCT_VERSION}. "
+            f"Upgrade both ends together."
+        )
 
     def _reset_buffer(self) -> bool:
         if self._mirror_state.buffer_shmem is not None:
