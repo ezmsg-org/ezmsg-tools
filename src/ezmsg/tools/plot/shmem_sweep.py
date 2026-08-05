@@ -187,8 +187,19 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         return DEFAULT_POLL_HZ
 
     def _close_figure(self) -> None:
+        """Stop the old canvas drawing, then close it.
+
+        Hidden first: a hidden widget receives no paint events, which narrows
+        the window in which rendercanvas can try to present a frame into a Qt
+        object that is on its way out. deleteLater defers the actual C++
+        destruction to the next event-loop turn, so that window is real.
+        """
         if self._sweep is None:
             return
+        try:
+            self._sweep.hide()
+        except Exception:
+            logger.debug("hiding the sweep before teardown raised; continuing", exc_info=True)
         figure = getattr(self._sweep, "_figure", None)
         if figure is not None:
             try:
