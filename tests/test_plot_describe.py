@@ -194,3 +194,29 @@ def test_envelope_srate_is_the_post_decimation_rate():
     """What a sweep buffer must be sized with. Using the pre-decimation rate
     makes the ring far longer than the data arriving to fill it."""
     assert describe_axisarray(envelope(fs=1000.0)).srate == pytest.approx(1000.0)
+
+
+def test_transposed_source_is_described_by_the_buffer_order():
+    """The sink rolls the buffered axis to the front, so a source that sent
+    (ch, time) is held as (time, ch) -- and dims must say so, since a reader
+    has no way to know it should re-roll them."""
+    from ezmsg.tools.plot.describe import describe_mirror
+
+    class FakeMeta:
+        bvalid, ndim, srate = True, 3, 1000.0
+        shape = (2000, 4, 2)  # rolled: time first
+
+    class FakeMirror:
+        meta = FakeMeta()
+        # What ShMemCircBuff now records: the order the ring actually holds.
+        dims = ["time", "ch", "metric"]
+        axes = {
+            "ch": {"kind": "coord", "data": np.zeros(4, dtype=CHANNEL_DTYPE)},
+            "metric": {"kind": "coord", "data": np.array(["min", "max"])},
+        }
+        attrs = {"unit": "uV"}
+
+    shape = describe_mirror(FakeMirror())
+    assert shape.n_channels == 4
+    assert shape.envelope
+    assert shape.srate == pytest.approx(1000.0)

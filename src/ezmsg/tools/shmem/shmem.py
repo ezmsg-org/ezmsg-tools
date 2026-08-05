@@ -378,7 +378,12 @@ class ShMemCircBuff(ez.Unit):
             ):
                 return False
 
-        blob, dropped = encode_aux(msg.dims, msg.axes, msg.attrs, msg.key, self.SETTINGS.axis)
+        # The ring rolls the buffered axis to the front (see on_message), and
+        # meta.shape already describes that order, so dims must too -- a reader
+        # given the sender's original order would have to know to re-roll it,
+        # which is knowledge it has no way to arrive at.
+        rolled_dims = [self.SETTINGS.axis] + [d for d in msg.dims if d != self.SETTINGS.axis]
+        blob, dropped = encode_aux(rolled_dims, msg.axes, msg.attrs, msg.key, self.SETTINGS.axis)
         if dropped:
             dropped_set = frozenset(dropped)
             if self.STATE.warned_dropped_attrs != dropped_set:

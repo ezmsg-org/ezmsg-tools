@@ -244,13 +244,10 @@ def describe_mirror(
     if axes is None:
         return None
     shape = tuple(int(v) for v in meta.shape[: meta.ndim])
-    # The ring rolls the buffered axis to the front; dims record the sender's
-    # order, so rebuild the order the buffer is actually in.
-    dims = list(mirror.dims or [])
-    if time_axis in dims:
-        dims.insert(0, dims.pop(dims.index(time_axis)))
+    # dims and meta.shape describe the same ordering -- the sink records the
+    # order the ring actually holds, not the order the message arrived in.
     return _describe(
-        dims,
+        list(mirror.dims or []),
         axes,
         mirror.attrs or {},
         shape,
