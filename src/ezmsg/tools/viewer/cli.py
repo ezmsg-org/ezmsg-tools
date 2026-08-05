@@ -19,7 +19,11 @@ from phosphor import (
 )
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget
 
-from ezmsg.tools.plot.describe import describe_axisarray, flatten_for_plot
+from ezmsg.tools.plot.describe import (
+    describe_axisarray,
+    flatten_for_plot,
+    require_sweep_renderable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +133,7 @@ class ViewerWindow(QMainWindow):
             if not shape.srate:
                 logger.warning("No usable 'time' axis — assuming 1 kHz")
                 shape = shape._replace(srate=1000.0)
+            require_sweep_renderable(shape)
             self._shape = shape
             config = SweepConfig(
                 n_channels=shape.n_channels,

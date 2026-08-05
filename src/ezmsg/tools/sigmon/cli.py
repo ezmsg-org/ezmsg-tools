@@ -18,7 +18,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMainWindow, QSplitter, QWidget
 
-from ezmsg.tools.plot.describe import describe_axisarray, flatten_for_plot
+from ezmsg.tools.plot.describe import (
+    describe_axisarray,
+    flatten_for_plot,
+    require_sweep_renderable,
+)
 from ezmsg.tools.sigmon.dag_widget import DAGWidget
 
 logger = logging.getLogger(__name__)
@@ -126,6 +130,7 @@ class SigmonWindow(QMainWindow):
 
         if "time" in msg.dims:
             shape = describe_axisarray(msg)
+            require_sweep_renderable(shape)
             self._shape = shape
             config = SweepConfig(
                 n_channels=shape.n_channels,

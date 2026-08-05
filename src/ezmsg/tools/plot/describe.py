@@ -19,23 +19,65 @@ import numpy as np
 from ..chmeta import channel_names
 
 __all__ = [
-    "ENVELOPE_AXIS_CANDIDATES",
+    "METRIC_AXIS_CANDIDATES",
+    "METRIC_KINDS",
+    "SWEEP_RENDERABLE_METRICS",
+    "MetricSpec",
     "StreamShape",
+    "UnsupportedMetricError",
     "describe_axisarray",
     "describe_mirror",
-    "envelope_axis",
     "flatten_for_plot",
+    "metric_axis",
+    "require_sweep_renderable",
 ]
 
-# Axis names an upstream min/max decimator might use for its (min, max) pair.
+# Axis names an upstream aggregator might use for its per-sample tuple.
 # ezmsg-sigproc's BinnedAggregate calls it "metric" by default but the name is a
 # setting, so recognising a couple of obvious alternatives costs nothing.
-ENVELOPE_AXIS_CANDIDATES = ("metric", "minmax", "bound")
+METRIC_AXIS_CANDIDATES = ("metric", "minmax", "bound", "stat")
 
-# Aggregation-function labels that make an axis an envelope rather than, say,
-# a (mean, std) pair -- which is 2-wide and named the same way but must not be
-# drawn as an upper and lower bound.
-_ENVELOPE_LABELS = ("min", "max")
+# Label tuples we recognise, and what to call the thing they describe. Keyed on
+# labels rather than width because width says nothing: (min, max) and
+# (mean, std) are both 2-wide and mean entirely different things, and drawing
+# one as the other is silently wrong rather than visibly broken.
+#
+# Adding a kind here is the cheap half. The expensive half is teaching a
+# renderer to draw it -- see SWEEP_RENDERABLE_METRICS.
+METRIC_KINDS: dict[tuple[str, ...], str] = {
+    ("min", "max"): "minmax",
+    ("mean", "std"): "mean_std",
+    ("mean", "sem"): "mean_sem",
+}
+
+# What a sweep plot can actually draw today.
+#
+# "minmax" maps onto phosphor's envelope input directly: the pair *is* the band,
+# so the existing column reduction (min of mins, max of maxes) is correct.
+#
+# A dispersion pair like "mean_std" needs different drawing -- a semi-transparent
+# band from mean-std to mean+std with an opaque line at the mean -- and
+# different column reduction, since averaging a mean is not the same as taking
+# extremes. Recognised here so it fails with an explanation instead of being
+# drawn as if it were an envelope.
+SWEEP_RENDERABLE_METRICS = frozenset({"minmax"})
+
+
+class MetricSpec(typing.NamedTuple):
+    """A trailing per-sample tuple: what it is called and what it holds."""
+
+    axis: str
+    """Name of the trailing axis."""
+
+    labels: tuple[str, ...]
+    """Its coordinate values, lowercased, in order."""
+
+    kind: str
+    """The entry in :data:`METRIC_KINDS` these labels matched."""
+
+
+class UnsupportedMetricError(NotImplementedError):
+    """A recognised metric axis that no renderer here can draw yet."""
 
 
 class StreamShape(typing.NamedTuple):
@@ -53,30 +95,58 @@ class StreamShape(typing.NamedTuple):
     channel_labels: list[str] | None
     """One name per channel, or None if the stream does not say."""
 
-    envelope: bool
-    """Whether each sample carries a (min, max) pair on a trailing axis."""
+    metric: MetricSpec | None
+    """The trailing per-sample tuple, if the stream carries one."""
 
     unit: str | None
     """The signal's amplitude unit, if it declares one."""
 
+    @property
+    def envelope(self) -> bool:
+        """Whether each sample carries a (min, max) pair -- phosphor's envelope."""
+        return self.metric is not None and self.metric.kind == "minmax"
 
-def envelope_axis(dims: typing.Sequence[str], axes: typing.Mapping[str, typing.Any]) -> str | None:
-    """Name of the trailing (min, max) axis, or None if this is a plain signal.
 
-    Identified by its *labels* rather than its name or width. A length-2
-    trailing axis could as easily be (mean, std), which would be nonsense to
-    draw as an envelope, so the coordinate values have to say ``min`` and
-    ``max``. The name is only used to narrow the search.
+def metric_axis(dims: typing.Sequence[str], axes: typing.Mapping[str, typing.Any]) -> MetricSpec | None:
+    """Describe the trailing per-sample tuple, or None if there is not one.
+
+    Recognised by *labels*, not by name or width. The name only narrows the
+    search; the labels are what distinguish a (min, max) envelope from a
+    (mean, std) dispersion pair, which is the same shape and must not be drawn
+    the same way.
+
+    Returns a spec for any tuple in :data:`METRIC_KINDS`, including ones no
+    renderer here supports yet -- describing a stream is not the same as being
+    able to draw it, and a caller that only wants to know what arrived should
+    not have to catch an exception. See :func:`require_sweep_renderable` for
+    the capability check.
     """
     if not dims:
         return None
     name = dims[-1]
-    if name not in ENVELOPE_AXIS_CANDIDATES:
+    if name not in METRIC_AXIS_CANDIDATES:
         return None
     data = _axis_data(axes.get(name))
-    if data is None or len(data) != 2:
+    if data is None:
         return None
-    return name if tuple(str(v).lower() for v in data) == _ENVELOPE_LABELS else None
+    labels = tuple(str(v).lower() for v in data)
+    kind = METRIC_KINDS.get(labels)
+    return None if kind is None else MetricSpec(axis=name, labels=labels, kind=kind)
+
+
+def require_sweep_renderable(shape: StreamShape) -> None:
+    """Raise if a sweep plot cannot draw this stream's metric axis.
+
+    :raises UnsupportedMetricError: for a recognised metric a sweep cannot draw.
+    """
+    metric = shape.metric
+    if metric is None or metric.kind in SWEEP_RENDERABLE_METRICS:
+        return
+    raise UnsupportedMetricError(
+        f"stream carries a {metric.kind!r} metric axis {metric.labels} on {metric.axis!r}, "
+        f"which a sweep plot cannot draw yet (supported: {sorted(SWEEP_RENDERABLE_METRICS)}). "
+        "Aggregate the stream differently upstream, or add rendering for it."
+    )
 
 
 def _axis_data(axis: typing.Any) -> np.ndarray | None:
@@ -108,12 +178,13 @@ def _describe(
     label_fields: typing.Sequence[str] = ("label",),
 ) -> StreamShape:
     dims = list(dims)
-    env_axis = envelope_axis(dims, axes)
+    metric = metric_axis(dims, axes)
+    metric_name = metric.axis if metric is not None else None
 
-    # Channel count is everything that is not time and not the envelope pair.
+    # Channel count is everything that is neither time nor the metric tuple.
     n_channels = 1
     for name, size in zip(dims, shape):
-        if name in (time_axis, env_axis):
+        if name in (time_axis, metric_name):
             continue
         n_channels *= int(size)
 
@@ -131,7 +202,7 @@ def _describe(
         n_channels=max(1, n_channels),
         srate=float(srate or 0.0),
         channel_labels=labels,
-        envelope=env_axis is not None,
+        metric=metric,
         unit=None if unit is None else str(unit),
     )
 
@@ -190,20 +261,20 @@ def describe_mirror(
 
 
 def flatten_for_plot(data: np.ndarray, shape: StreamShape) -> np.ndarray:
-    """Reshape a block to what phosphor's ``push_data`` expects.
+    """Reshape a block to what a plot's ``push_data`` expects.
 
-    ``(n_samples, ..., 2)`` for an envelope, ``(n_samples, n_channels)``
-    otherwise, with any extra dimensions folded into channels.
+    ``(n_samples, n_channels, k)`` when the stream carries a k-wide metric
+    tuple, ``(n_samples, n_channels)`` otherwise, with any other dimensions
+    folded into channels.
 
-    The envelope case is the reason this exists. Folding a ``(time, ch, 2)``
+    The metric case is the reason this exists. Folding a ``(time, ch, 2)``
     block into ``(time, ch * 2)`` -- which is what a naive ``reshape`` does --
-    renders as twice as many traces, alternating lower and upper bounds, with
-    every channel label off by a factor of two. It looks like data, so nothing
+    renders as twice as many traces, alternating the two metrics, with every
+    channel label off by a factor of two. It looks like data, so nothing
     complains.
     """
+    width = len(shape.metric.labels) if shape.metric is not None else None
+    tail = (shape.n_channels,) if width is None else (shape.n_channels, width)
     if data.size == 0:
-        return data.reshape((0, shape.n_channels, 2) if shape.envelope else (0, shape.n_channels))
-    n_samples = data.shape[0]
-    if shape.envelope:
-        return data.reshape(n_samples, shape.n_channels, 2)
-    return data.reshape(n_samples, shape.n_channels)
+        return data.reshape((0,) + tail)
+    return data.reshape((data.shape[0],) + tail)

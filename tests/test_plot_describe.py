@@ -12,9 +12,11 @@ import pytest
 from ezmsg.util.messages.axisarray import AxisArray
 
 from ezmsg.tools.plot.describe import (
+    UnsupportedMetricError,
     describe_axisarray,
-    envelope_axis,
     flatten_for_plot,
+    metric_axis,
+    require_sweep_renderable,
 )
 
 CHANNEL_DTYPE = np.dtype([("bank", "U2"), ("elec", "<i4"), ("label", "U16")])
@@ -29,7 +31,7 @@ def ch_axis(n: int) -> AxisArray.CoordinateAxis:
     return AxisArray.CoordinateAxis(data=data, dims=["ch"], unit="")
 
 
-def metric_axis(labels=("min", "max")) -> AxisArray.CoordinateAxis:
+def metric_ax(labels=("min", "max")) -> AxisArray.CoordinateAxis:
     return AxisArray.CoordinateAxis(data=np.array(list(labels)), dims=["metric"], unit="")
 
 
@@ -47,7 +49,7 @@ def envelope(n_time=10, n_ch=4, fs=1000.0, labels=("min", "max")) -> AxisArray:
     return AxisArray(
         data=np.zeros((n_time, n_ch, 2), dtype=np.float32),
         dims=["time", "ch", "metric"],
-        axes={"time": AxisArray.TimeAxis(fs=fs), "ch": ch_axis(n_ch), "metric": metric_axis(labels)},
+        axes={"time": AxisArray.TimeAxis(fs=fs), "ch": ch_axis(n_ch), "metric": metric_ax(labels)},
         attrs={"unit": "uV"},
         key="env",
     )
@@ -97,30 +99,55 @@ def test_describes_an_envelope():
     assert shape.channel_labels == ["e0", "e1", "e2", "e3"]
 
 
-def test_envelope_is_identified_by_labels_not_width():
-    """A 2-wide trailing axis is not automatically an envelope: (mean, std) is
-    the same shape and would be nonsense drawn as bounds."""
+def test_metric_kind_comes_from_labels_not_width():
+    """A 2-wide trailing axis says nothing on its own: (min, max) and
+    (mean, std) are the same shape and mean entirely different things."""
     dims = ["time", "ch", "metric"]
-    assert envelope_axis(dims, {"metric": metric_axis(("min", "max"))}) == "metric"
-    assert envelope_axis(dims, {"metric": metric_axis(("mean", "std"))}) is None
-    assert envelope_axis(dims, {"metric": metric_axis(("MIN", "MAX"))}) == "metric"
+
+    assert metric_axis(dims, {"metric": metric_ax(("min", "max"))}).kind == "minmax"
+    assert metric_axis(dims, {"metric": metric_ax(("mean", "std"))}).kind == "mean_std"
+    assert metric_axis(dims, {"metric": metric_ax(("MIN", "MAX"))}).kind == "minmax"
+    # Not a vocabulary we know: treat as ordinary extra dimensions.
+    assert metric_axis(dims, {"metric": metric_ax(("p5", "p95"))}) is None
 
 
-def test_envelope_axis_must_be_trailing_and_named():
-    assert envelope_axis(["time", "metric", "ch"], {"metric": metric_axis()}) is None
-    assert envelope_axis(["time", "ch", "other"], {"other": metric_axis()}) is None
-    assert envelope_axis([], {}) is None
+def test_only_minmax_is_renderable_today():
+    """Others are recognised so they fail with an explanation rather than
+    being drawn as if they were an envelope."""
+    minmax = describe_axisarray(envelope())
+    require_sweep_renderable(minmax)  # does not raise
+
+    dispersion = describe_axisarray(envelope(labels=("mean", "std")))
+    assert dispersion.metric.kind == "mean_std"
+    assert not dispersion.envelope
+    with pytest.raises(UnsupportedMetricError, match="mean_std"):
+        require_sweep_renderable(dispersion)
 
 
-def test_envelope_axis_of_wrong_width_is_rejected():
+def test_unrenderable_metric_still_describes_cleanly():
+    """Describing is not drawing: a caller that only wants to know what
+    arrived should not have to catch anything."""
+    shape = describe_axisarray(envelope(n_ch=4, labels=("mean", "std")))
+    assert shape.n_channels == 4
+    assert shape.metric.labels == ("mean", "std")
+    assert shape.channel_labels == ["e0", "e1", "e2", "e3"]
+
+
+def test_metric_axis_must_be_trailing_and_named():
+    assert metric_axis(["time", "metric", "ch"], {"metric": metric_ax()}) is None
+    assert metric_axis(["time", "ch", "other"], {"other": metric_ax()}) is None
+    assert metric_axis([], {}) is None
+
+
+def test_metric_axis_of_unknown_width_is_rejected():
     wide = AxisArray.CoordinateAxis(data=np.array(["min", "max", "mean"]), dims=["metric"], unit="")
-    assert envelope_axis(["time", "ch", "metric"], {"metric": wide}) is None
+    assert metric_axis(["time", "ch", "metric"], {"metric": wide}) is None
 
 
 def test_axes_may_be_plain_dicts():
     """EZShmMirror hands back dicts, not ezmsg axis objects."""
     as_dict = {"kind": "coord", "unit": "", "dims": ["metric"], "data": np.array(["min", "max"])}
-    assert envelope_axis(["time", "ch", "metric"], {"metric": as_dict}) == "metric"
+    assert metric_axis(["time", "ch", "metric"], {"metric": as_dict}).kind == "minmax"
 
 
 # ---- reshaping -------------------------------------------------------------

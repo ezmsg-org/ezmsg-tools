@@ -11,19 +11,29 @@ you need.
 """
 
 from .describe import (
+    METRIC_KINDS,
+    SWEEP_RENDERABLE_METRICS,
+    MetricSpec,
     StreamShape,
+    UnsupportedMetricError,
     describe_axisarray,
     describe_mirror,
-    envelope_axis,
     flatten_for_plot,
+    metric_axis,
+    require_sweep_renderable,
 )
 from .shmem_sweep import ShmemSweepWidget
 
 __all__ = [
+    "METRIC_KINDS",
+    "SWEEP_RENDERABLE_METRICS",
+    "MetricSpec",
     "ShmemSweepWidget",
     "StreamShape",
+    "UnsupportedMetricError",
     "describe_axisarray",
     "describe_mirror",
-    "envelope_axis",
     "flatten_for_plot",
+    "metric_axis",
+    "require_sweep_renderable",
 ]

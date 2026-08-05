@@ -25,7 +25,13 @@ from phosphor.sweep_widget import SweepConfig, SweepWidget
 from PySide6 import QtCore, QtWidgets
 
 from ..shmem.shmem_mirror import EZShmMirror
-from .describe import StreamShape, describe_mirror, flatten_for_plot
+from .describe import (
+    StreamShape,
+    UnsupportedMetricError,
+    describe_mirror,
+    flatten_for_plot,
+    require_sweep_renderable,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +84,7 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         self._sweep: SweepWidget | None = None
         self._controls: ChannelPlotControlsWidget | None = None
         self._shape: StreamShape | None = None
+        self._error: str | None = None
 
         self._shmem_name = shmem_name
         self._mirror = EZShmMirror(shmem_name)
@@ -113,7 +120,23 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         self._mirror.disconnect()
         self._close_figure()
 
+    @property
+    def error(self) -> str | None:
+        """Why the widget gave up, or None if it has not."""
+        return self._error
+
     # ---- Internals -----------------------------------------------------
+
+    def _fail(self, message: str) -> None:
+        """Stop polling and say why, in the widget and in the log."""
+        if self._error is not None:
+            return
+        self._error = message
+        logger.error("%s", message)
+        self._timer.stop()
+        if self._placeholder is not None:
+            self._placeholder.setText(message)
+            self._placeholder.setWordWrap(True)
 
     @staticmethod
     def _effective_poll_hz(poll_hz: float | None, max_fps: float | None) -> float:
@@ -151,6 +174,15 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         if self._idle_ticks:
             logger.info("Connected to shmem %r; data is flowing.", self._shmem_name)
             self._idle_ticks = 0
+
+        try:
+            require_sweep_renderable(shape)
+        except UnsupportedMetricError as exc:
+            # Stop rather than draw it as something it is not. Reported once and
+            # the timer stopped, because raising out of a Qt slot would repeat
+            # this every tick for as long as the window is open.
+            self._fail(str(exc))
+            return
 
         self._apply_shape(shape)
 
