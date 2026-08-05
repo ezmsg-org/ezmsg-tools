@@ -125,6 +125,26 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         """Why the widget gave up, or None if it has not."""
         return self._error
 
+    # ---- Subclass hooks -------------------------------------------------
+
+    def on_plot_built(self) -> None:
+        """Called after the inner plot is created or recreated.
+
+        Attach anything parented to the plot here -- overlays, diagnostics --
+        rather than in ``__init__``: the plot does not exist until the stream
+        does, and it is thrown away and rebuilt if the stream's rate or metric
+        changes underneath.
+        """
+
+    def on_frame(self, shape: StreamShape) -> None:
+        """Called once per poll tick, after any new samples are pushed.
+
+        For state that has to track the plot but that this widget cannot
+        compute -- anything needing units, or a host application's own
+        readouts. Called whether or not samples arrived, so a subclass sees a
+        steady cadence.
+        """
+
     # ---- Internals -----------------------------------------------------
 
     def _fail(self, message: str) -> None:
@@ -137,6 +157,20 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         if self._placeholder is not None:
             self._placeholder.setText(message)
             self._placeholder.setWordWrap(True)
+
+    @staticmethod
+    def _needs_rebuild(previous: StreamShape | None, shape: StreamShape) -> bool:
+        """Whether a stream change invalidates the buffer's layout.
+
+        Rebuilding throws away the figure and flashes the plot, which is
+        unpleasant every time a user narrows their channel selection -- so it
+        is reserved for changes the buffer cannot absorb. A different sample
+        rate resizes the ring, and a change of metric changes the rank of what
+        is stored; a channel count or relabel is handled in place.
+        """
+        if previous is None:
+            return True
+        return previous.srate != shape.srate or previous.envelope != shape.envelope
 
     @staticmethod
     def _effective_poll_hz(poll_hz: float | None, max_fps: float | None) -> float:
@@ -189,6 +223,8 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         if samples is not None and samples.size:
             self._sweep.push_data(np.ascontiguousarray(flatten_for_plot(samples, shape), dtype=np.float32))
 
+        self.on_frame(shape)
+
     def _apply_shape(self, shape: StreamShape) -> None:
         """Build the plot, or reconfigure it if the stream changed underneath."""
         previous, self._shape = self._shape, shape
@@ -197,10 +233,7 @@ class ShmemSweepWidget(QtWidgets.QWidget):
             return
         if previous == shape:
             return
-        # A changed rate or envelope mode means the buffer's whole layout is
-        # wrong; anything else resizes in place, which avoids the plot flashing
-        # every time a user narrows the channel selection.
-        if previous is None or previous.srate != shape.srate or previous.envelope != shape.envelope:
+        if self._needs_rebuild(previous, shape):
             self._build(shape)
         else:
             self._sweep.update_config(self._config_for(shape))
@@ -263,3 +296,4 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         if self._show_controls:
             self._controls = ChannelPlotControlsWidget(self._sweep, parent=self)
             self._layout.addWidget(self._controls)
+        self.on_plot_built()
