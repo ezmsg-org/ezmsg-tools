@@ -19,6 +19,8 @@ from phosphor import (
 )
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget
 
+from ezmsg.tools.plot.describe import describe_axisarray, flatten_for_plot
+
 logger = logging.getLogger(__name__)
 
 GRAPH_IP = "127.0.0.1"
@@ -105,6 +107,8 @@ class ViewerWindow(QMainWindow):
         self._first_message = True
         self._channel_labels: list[str] | None = None
         self._channel_positions: np.ndarray | None = None
+        # What describe_axisarray made of the stream; rebuilt on topic change.
+        self._shape = None
 
     # ------------------------------------------------------------------
     # Data handling
@@ -121,19 +125,17 @@ class ViewerWindow(QMainWindow):
         labels = self._channel_labels
 
         if self._mode == PlotMode.timeseries:
-            if "time" in msg.dims:
-                time_axis = msg.get_axis("time")
-                srate = 1.0 / time_axis.gain
-                time_idx = msg.get_axis_idx("time")
-                n_samples = msg.shape[time_idx]
-                n_channels = msg.data.size // n_samples
-            else:
-                logger.warning("No 'time' dimension — using shape[0] as time")
-                n_samples = msg.shape[0]
-                n_channels = msg.data.size // n_samples if n_samples > 0 else 1
-                srate = 1000.0
-
-            config = SweepConfig(n_channels=n_channels, srate=srate, channel_labels=labels)
+            shape = describe_axisarray(msg)
+            if not shape.srate:
+                logger.warning("No usable 'time' axis — assuming 1 kHz")
+                shape = shape._replace(srate=1000.0)
+            self._shape = shape
+            config = SweepConfig(
+                n_channels=shape.n_channels,
+                srate=shape.srate,
+                channel_labels=labels or shape.channel_labels,
+                envelope=shape.envelope,
+            )
             widget = SweepWidget(config)
 
         elif self._mode == PlotMode.spectral:
@@ -166,13 +168,12 @@ class ViewerWindow(QMainWindow):
 
         if isinstance(widget, SweepWidget):
             time_idx = msg.get_axis_idx("time") if "time" in msg.dims else 0
-            n_samples = msg.shape[time_idx]
-            n_channels = msg.data.size // n_samples if n_samples > 0 else 1
-            data_2d = np.moveaxis(msg.data, time_idx, 0).reshape(n_samples, n_channels)
+            shape = self._shape or describe_axisarray(msg)
+            data = flatten_for_plot(np.moveaxis(msg.data, time_idx, 0), shape)
             # Pass the AxisArray time-axis offset so the sweep buffer
             # tracks the same clock as the event timestamps.
             ts = msg.get_axis("time").offset if "time" in msg.dims else None
-            widget.push_data(data_2d.astype(np.float32), timestamps=ts)
+            widget.push_data(data.astype(np.float32), timestamps=ts)
 
         elif isinstance(widget, SpectrumWidget):
             freq_idx = msg.get_axis_idx("freq") if "freq" in msg.dims else 0
