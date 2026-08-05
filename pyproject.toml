@@ -102,6 +102,10 @@ known-first-party = ["ezmsg.tools"]
 known-third-party = ["ezmsg"]
 
 [tool.uv.sources]
-phosphor = { path = "../phosphor", editable = true }
+# Local path sources are a developer convenience and must not be committed: CI
+# has no sibling checkouts, so a path here fails resolution for every job,
+# including ones that never touch the package (`uv sync --only-group docs`).
+# Add them locally with `uv add ../phosphor --editable --frozen` and drop the
+# change before committing.
 # Uncomment to use development version of ezmsg from git
 #ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "dev" }
