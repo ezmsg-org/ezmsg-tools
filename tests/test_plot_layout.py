@@ -10,7 +10,7 @@ or shared between two devices that each numbered from their own origin.
 import numpy as np
 import pytest
 
-from ezmsg.tools.plot import channel_layout
+from ezmsg.tools.plot import ChannelLayoutCache, channel_layout
 
 GEOMETRY = np.dtype([("x", "f4"), ("y", "f4"), ("size", "f4"), ("label", "U8"), ("headstage", "i4")])
 
@@ -129,3 +129,67 @@ def test_degenerate_channel_counts_do_not_raise(n):
     positions, _, labels = channel_layout(None, n)
     assert positions.shape == (n, 2)
     assert len(labels) == n
+
+
+# ---- caching ----------------------------------------------------------------
+#
+# A grid deriving its layout per message pays per message, while the answer
+# changes about once a session.
+
+
+def test_an_unchanged_axis_is_not_derived_twice():
+    cache = ChannelLayoutCache()
+    ch = make_axis(4)
+    assert cache(ch, 4) is cache(ch, 4)
+
+
+def test_an_equal_but_distinct_axis_still_hits():
+    """The axis arrives deserialized from another process, so it is a new object
+    every message while describing the same electrodes. Keying on identity would
+    make the cache useless exactly where it is needed."""
+    cache = ChannelLayoutCache()
+    ch = make_axis(4)
+    first = cache(ch, 4)
+    assert cache(ch.copy(), 4) is first
+
+
+def test_a_changed_axis_is_derived_again():
+    cache = ChannelLayoutCache()
+    ch = make_axis(4)
+    first = cache(ch, 4)
+
+    moved = ch.copy()
+    moved["x"][0] = 99.0
+    second = cache(moved, 4)
+
+    assert second is not first
+    assert second[0][0, 0] == pytest.approx(99.0)
+
+
+def test_a_changed_channel_count_is_derived_again():
+    cache = ChannelLayoutCache()
+    assert cache(None, 4) is not cache(None, 9)
+
+
+def test_changed_options_are_derived_again():
+    """Same axis, different question -- the answer is not the cached one."""
+    dt = np.dtype([("x", "f4"), ("y", "f4"), ("bank", "U4"), ("elec", "i4")])
+    ch = np.zeros(2, dtype=dt)
+    ch["bank"] = ["A", "A"]
+    ch["elec"] = [1, 2]
+
+    cache = ChannelLayoutCache()
+    assert cache(ch, 2)[2] == ["ch0", "ch1"]
+    assert cache(ch, 2, label_fields=("bank", "elec"))[2] == ["A-1", "A-2"]
+
+
+def test_no_axis_at_all_caches_too():
+    cache = ChannelLayoutCache()
+    assert cache(None, 3) is cache(None, 3)
+
+
+def test_two_caches_do_not_share():
+    """Each consumer keeps its own, so neither has to know the other exists."""
+    a, b = ChannelLayoutCache(), ChannelLayoutCache()
+    ch = make_axis(4)
+    assert a(ch, 4) is not b(ch, 4)

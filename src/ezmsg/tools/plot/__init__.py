@@ -30,7 +30,7 @@ from .describe import (
 )
 
 if typing.TYPE_CHECKING:  # pragma: no cover - import for type checkers only
-    from .layout import channel_layout
+    from .layout import ChannelLayoutCache, channel_layout
     from .shmem_sweep import ShmemSweepWidget
 
 __all__ = [
@@ -39,6 +39,7 @@ __all__ = [
     "MetricSpec",
     "ShmemSweepWidget",
     "StreamShape",
+    "ChannelLayoutCache",
     "UnsupportedMetricError",
     "channel_layout",
     "describe_axisarray",
@@ -55,8 +56,8 @@ def __getattr__(name: str) -> typing.Any:
         from .shmem_sweep import ShmemSweepWidget
 
         return ShmemSweepWidget
-    if name == "channel_layout":
-        from .layout import channel_layout
+    if name in ("channel_layout", "ChannelLayoutCache"):
+        from . import layout
 
-        return channel_layout
+        return getattr(layout, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
