@@ -76,12 +76,14 @@ SR = 2000.0
 CHANNEL_COUNT = 128
 CHUNK_SIZE = 64
 TOTAL_DURATION = 5.0
+STARTUP_TIMEOUT = 20.0
+SHUTDOWN_TIMEOUT = 20.0
 
 
 def app(file_path) -> None:
     change_type = "dtype"
     chunk_rate = 10.0
-    chunk_size = SR // chunk_rate
+    chunk_size = int(SR // chunk_rate)
     n_messages = int(TOTAL_DURATION * chunk_rate)
 
     comps = {
@@ -139,6 +141,9 @@ def test_shmem_mirror_switch_buffer():
 
     START_TIME = time.time()
     while get_chunk(mirror) is None:
+        assert (
+            time.time() - START_TIME < STARTUP_TIMEOUT
+        ), f"No data in shared memory after {STARTUP_TIMEOUT} s; the pipeline never produced a message."
         time.sleep(0.1)
     print(f"*** Pipeline started in {time.time() - START_TIME:.2f} seconds")
 
@@ -146,7 +151,11 @@ def test_shmem_mirror_switch_buffer():
     data_received = collect_data(mirror, TOTAL_DURATION)
 
     # Stop bolt and LSL stream
-    app_thread.join()
+    app_thread.join(timeout=SHUTDOWN_TIMEOUT)
+    assert not app_thread.is_alive(), (
+        f"Pipeline still running {SHUTDOWN_TIMEOUT} s after the data collection window; "
+        "it never reached its terminating message count."
+    )
 
     messages: typing.List[AxisArray] = [_ for _ in message_log(file_path)]
     file_path.unlink(missing_ok=True)
