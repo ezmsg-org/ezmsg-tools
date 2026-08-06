@@ -178,12 +178,16 @@ class ShMemCircBuffState(ez.State):
     warned_dropped_attrs: typing.Optional[frozenset] = None
 
 
-def _persist_create_shmem(name: str, size: int) -> SharedMemory:
+def _persist_create_shmem(name: str, size: int, purpose: str = "") -> SharedMemory:
     """
     Create a shared memory object, retrying if necessary.
     Args:
         name: The name of the shared memory object.
         size: The size of the shared memory object.
+        purpose: What this segment is for, for the log line. Names are hashed
+          to fit the platform's length limit, so without this a reader cannot
+          tell the data ring from the metadata blob -- and a shape change
+          recreates both, back to back.
 
     Returns: The SharedMemory object.
     """
@@ -198,13 +202,15 @@ def _persist_create_shmem(name: str, size: int) -> SharedMemory:
             )
             break
         except FileExistsError:
+            n_attempts += 1
             tmp_shmem = SharedMemory(
                 name=name,
                 create=False,
             )
             tmp_shmem.close()
             tmp_shmem.unlink()
-    ez.logger.info(f"Created shmem at {name} in {n_attempts} attempts after {time.time() - t0:.2f} s.")
+    retried = f" after {n_attempts} stale-name retries," if n_attempts else ""
+    ez.logger.info(f"Created {purpose or 'shmem'} ({size} bytes) at {name}{retried} in {time.time() - t0:.3f} s.")
     return result
 
 
@@ -331,7 +337,7 @@ class ShMemCircBuff(ez.Unit):
         # Create the metadata shared memory object.
         meta_size = int(ctypes.sizeof(ShmemArrMeta))
         short_name = shorten_shmem_name(self.SETTINGS.shmem_name)
-        self.STATE.meta_shmem = _persist_create_shmem(short_name, meta_size)
+        self.STATE.meta_shmem = _persist_create_shmem(short_name, meta_size, purpose="shmem header")
 
         if self.SETTINGS.shmem_name is None:
             # If the name is None, then we need to get the name from the shared memory object.
@@ -378,7 +384,12 @@ class ShMemCircBuff(ez.Unit):
             ):
                 return False
 
-        blob, dropped = encode_aux(msg.dims, msg.axes, msg.attrs, msg.key, self.SETTINGS.axis)
+        # The ring rolls the buffered axis to the front (see on_message), and
+        # meta.shape already describes that order, so dims must too -- a reader
+        # given the sender's original order would have to know to re-roll it,
+        # which is knowledge it has no way to arrive at.
+        rolled_dims = [self.SETTINGS.axis] + [d for d in msg.dims if d != self.SETTINGS.axis]
+        blob, dropped = encode_aux(rolled_dims, msg.axes, msg.attrs, msg.key, self.SETTINGS.axis)
         if dropped:
             dropped_set = frozenset(dropped)
             if self.STATE.warned_dropped_attrs != dropped_set:
@@ -399,7 +410,7 @@ class ShMemCircBuff(ez.Unit):
         # 0 means "nothing published", so skip it when the uint32 wraps.
         generation = (self.STATE.meta_struct.meta_generation + 1) % (2**32) or 1
         aux_name = shorten_shmem_name(self.SETTINGS.shmem_name + "/meta" + str(generation))
-        self.STATE.aux_shmem = _persist_create_shmem(aux_name, len(blob))
+        self.STATE.aux_shmem = _persist_create_shmem(aux_name, len(blob), purpose=f"stream metadata gen {generation}")
         self.STATE.aux_shmem.buf[: len(blob)] = blob
 
         # Order matters: the segment is fully written before the header names it,
@@ -509,7 +520,12 @@ class ShMemCircBuff(ez.Unit):
         buff_size = int(n_frames * np.prod(frame_shape) * msg.data.itemsize)
         buff_shm_name = self.SETTINGS.shmem_name + "/buffer" + str(self.STATE.meta_struct.buffer_generation)
         short_name = shorten_shmem_name(buff_shm_name)
-        self.STATE.buffer_shmem = _persist_create_shmem(short_name, buff_size)
+        self.STATE.buffer_shmem = _persist_create_shmem(
+            short_name,
+            buff_size,
+            purpose=f"data ring gen {self.STATE.meta_struct.buffer_generation} "
+            f"({'x'.join(str(d) for d in (n_frames,) + frame_shape)})",
+        )
         self.STATE.buffer_arr = np.ndarray(
             self.STATE.meta_struct.shape[: self.STATE.meta_struct.ndim],
             dtype=np.dtype(self.STATE.meta_struct.dtype.decode("utf8")),

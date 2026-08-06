@@ -18,6 +18,11 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMainWindow, QSplitter, QWidget
 
+from ezmsg.tools.plot.describe import (
+    describe_axisarray,
+    flatten_for_plot,
+    require_sweep_renderable,
+)
 from ezmsg.tools.sigmon.dag_widget import DAGWidget
 
 logger = logging.getLogger(__name__)
@@ -89,6 +94,8 @@ class SigmonWindow(QMainWindow):
         # Channel metadata cached from the first message of each topic.
         self._channel_labels: list[str] | None = None
         self._channel_positions: np.ndarray | None = None
+        # What describe_axisarray made of the stream; rebuilt on topic change.
+        self._shape = None
         # Cached parameters for rebuilding the primary (sweep/spectrum) widget.
         self._primary_config: SweepConfig | SpectrumConfig | None = None
         self._showing_scatter = False
@@ -104,6 +111,7 @@ class SigmonWindow(QMainWindow):
         self._first_message = True
         self._channel_labels = None
         self._channel_positions = None
+        self._shape = None
         self._primary_config = None
         self._showing_scatter = False
 
@@ -121,16 +129,14 @@ class SigmonWindow(QMainWindow):
         labels = self._channel_labels
 
         if "time" in msg.dims:
-            time_axis = msg.get_axis("time")
-            srate = 1.0 / time_axis.gain
-            time_idx = msg.get_axis_idx("time")
-            n_samples = msg.shape[time_idx]
-            n_channels = msg.data.size // n_samples
-
+            shape = describe_axisarray(msg)
+            require_sweep_renderable(shape)
+            self._shape = shape
             config = SweepConfig(
-                n_channels=n_channels,
-                srate=srate,
-                channel_labels=labels,
+                n_channels=shape.n_channels,
+                srate=shape.srate,
+                channel_labels=labels or shape.channel_labels,
+                envelope=shape.envelope,
             )
             widget = SweepWidget(config)
 
@@ -217,10 +223,9 @@ class SigmonWindow(QMainWindow):
 
         if isinstance(widget, SweepWidget):
             time_idx = msg.get_axis_idx("time") if "time" in msg.dims else 0
-            n_samples = msg.shape[time_idx]
-            n_channels = msg.data.size // n_samples if n_samples > 0 else 1
-            data_2d = np.moveaxis(msg.data, time_idx, 0).reshape(n_samples, n_channels)
-            widget.push_data(data_2d.astype(np.float32))
+            shape = self._shape or describe_axisarray(msg)
+            data = flatten_for_plot(np.moveaxis(msg.data, time_idx, 0), shape)
+            widget.push_data(data.astype(np.float32))
 
         elif isinstance(widget, SpectrumWidget):
             freq_idx = msg.get_axis_idx("freq") if "freq" in msg.dims else 0

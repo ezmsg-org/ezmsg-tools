@@ -54,19 +54,19 @@ sigmon = [
     "pygraphviz>=1.14",
     "typer>=0.15.1",
     "ezmsg-qt>=0.2.1",
-    "phosphor>=0.5.0",
+    "phosphor>=0.8.0",
     "pandas",
 ]
 viewer = [
     "PySide6>=6.7",
     "typer>=0.15.1",
     "ezmsg-qt>=0.2.1",
-    "phosphor>=0.5.0",
+    "phosphor>=0.8.0",
 ]
 
 [project.scripts]
-ezmsg-performance-monitor = "ezmsg.tools.perfmon.cli:main"
-ezmsg-signal-monitor = "ezmsg.tools.sigmon.cli:main"
+ezmsg-performance-monitor = "ezmsg.tools.perfmon:main"
+ezmsg-signal-monitor = "ezmsg.tools.sigmon:main"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -99,5 +99,10 @@ known-first-party = ["ezmsg.tools"]
 known-third-party = ["ezmsg"]
 
 [tool.uv.sources]
+# Local path sources are a developer convenience and must not be committed: CI
+# has no sibling checkouts, so a path here fails resolution for every job,
+# including ones that never touch the package (`uv sync --only-group docs`).
+# Add them locally with `uv add ../phosphor --editable --frozen` and drop the
+# change before committing.
 # Uncomment to use development version of ezmsg from git
 #ezmsg = { git = "https://github.com/ezmsg-org/ezmsg.git", branch = "dev" }
