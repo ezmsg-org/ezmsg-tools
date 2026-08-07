@@ -10,7 +10,19 @@ or shared between two devices that each numbered from their own origin.
 import numpy as np
 import pytest
 
-from ezmsg.tools.plot import ChannelLayoutCache, channel_layout
+# The geometry helpers this builds on live in phosphor, which is an optional
+# extra -- so a runner that installs only the test group cannot reach them.
+# Same guard as test_shmem_sweep, and skipped for the same reason.
+# Keyed on phosphor itself, not on the module under test: layout.py imports it
+# inside the function, so the module imports fine without it and only fails when
+# called.
+pytest.importorskip(
+    "phosphor.grid_layout",
+    reason="needs phosphor (the 'viewer' or 'sigmon' extra)",
+    exc_type=ImportError,
+)
+
+from ezmsg.tools.plot import ChannelLayoutCache, channel_layout  # noqa: E402
 
 GEOMETRY = np.dtype([("x", "f4"), ("y", "f4"), ("size", "f4"), ("label", "U8"), ("headstage", "i4")])
 
