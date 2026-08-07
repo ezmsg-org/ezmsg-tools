@@ -54,14 +54,14 @@ sigmon = [
     "pygraphviz>=1.14",
     "typer>=0.15.1",
     "ezmsg-qt>=0.2.1",
-    "phosphor>=0.8.0",
+    "phosphor>=0.9.1",
     "pandas",
 ]
 viewer = [
     "PySide6>=6.7",
     "typer>=0.15.1",
     "ezmsg-qt>=0.2.1",
-    "phosphor>=0.8.0",
+    "phosphor>=0.9.1",
 ]
 
 [project.scripts]
