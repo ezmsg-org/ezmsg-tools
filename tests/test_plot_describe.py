@@ -17,6 +17,7 @@ from ezmsg.tools.plot.describe import (
     flatten_for_plot,
     metric_axis,
     require_sweep_renderable,
+    stream_axis,
 )
 
 CHANNEL_DTYPE = np.dtype([("bank", "U2"), ("elec", "<i4"), ("label", "U16")])
@@ -220,3 +221,67 @@ def test_transposed_source_is_described_by_the_buffer_order():
     assert shape.n_channels == 4
     assert shape.envelope
     assert shape.srate == pytest.approx(1000.0)
+
+
+class TestStreamAxis:
+    """Which dimension a plot should sweep along.
+
+    `"time"` is a wrong guess downstream of a windowing stage: a
+    `(win, time, ch)` message *has* a `time` dimension, but it is the
+    within-window lag, so a sweep keyed on it draws each window's interior
+    along the x-axis and treats the windows as channels.
+    """
+
+    @staticmethod
+    def _windowed(chunk_dim="win"):
+        kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+        return AxisArray(
+            np.zeros((4, 10, 3), np.float32),
+            dims=["win", "time", "ch"],
+            axes={"win": AxisArray.TimeAxis(fs=10.0), "time": AxisArray.TimeAxis(fs=100.0)},
+            key="dev",
+            **kwargs,
+        )
+
+    def test_it_prefers_the_declaration(self):
+        assert stream_axis(self._windowed(), "time") == "win"
+
+    def test_it_falls_back_when_nothing_is_declared(self):
+        assert stream_axis(self._windowed(chunk_dim=None), "time") == "time"
+
+    def test_the_fallback_order_is_honoured(self):
+        msg = AxisArray(
+            np.zeros((8, 3), np.float32),
+            dims=["freq", "ch"],
+            axes={"freq": AxisArray.LinearAxis(gain=1.0)},
+            key="dev",
+        )
+        assert stream_axis(msg, "time", "freq") == "freq"
+
+    def test_a_declaration_naming_an_absent_dim_is_ignored(self):
+        """`chunk_dim` is validated at construction, but a message can reach a
+        viewer after a transform that dropped the dimension without updating
+        it. Falling back beats indexing on a name that is not there."""
+        msg = AxisArray(
+            np.zeros((8, 3), np.float32),
+            dims=["time", "ch"],
+            axes={"time": AxisArray.TimeAxis(fs=100.0)},
+            key="dev",
+            chunk_dim="time",
+        )
+        object.__setattr__(msg, "chunk_dim", "win")
+        assert stream_axis(msg, "time") == "time"
+
+    def test_none_when_nothing_matches(self):
+        msg = AxisArray(np.zeros((4, 3), np.float32), dims=["a", "b"], axes={}, key="dev")
+        assert stream_axis(msg, "time", "freq") is None
+
+    def test_a_plain_stream_is_unaffected(self):
+        msg = AxisArray(
+            np.zeros((20, 3), np.float32),
+            dims=["time", "ch"],
+            axes={"time": AxisArray.TimeAxis(fs=100.0)},
+            key="dev",
+            chunk_dim="time",
+        )
+        assert stream_axis(msg, "time") == "time"

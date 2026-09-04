@@ -157,7 +157,22 @@ class ShMemCircBuffSettings(ez.Settings):
     shmem_name: typing.Optional[str]
     buf_dur: float
     conn: typing.Optional[multiprocessing.connection.Connection] = None
-    axis: str = "time"
+
+    axis: typing.Optional[str] = None
+    """Dimension to buffer along. ``None`` follows the message's ``chunk_dim``.
+
+    The ring is a history of the stream, so this has to be the dimension
+    messages accumulate along; buffering a static one would store the same
+    elements over and over. Only the producer reliably knows which that is --
+    it is ``time`` on a raw signal and ``win`` downstream of a windowing stage.
+
+    The old default of ``"time"`` was silently wrong for the latter. It is
+    *present* in a ``(win, time, ch)`` message, so nothing rejected it: the
+    window count ended up inside ``frame_shape`` -- reallocating the buffer
+    whenever the window count jittered -- and the reported sample rate was the
+    within-window rate, a 10x error in the viewer's time base for a 10-sample
+    window. Set explicitly only for a producer that declares no ``chunk_dim``.
+    """
 
 
 class ShMemCircBuffState(ez.State):
@@ -166,6 +181,8 @@ class ShMemCircBuffState(ez.State):
     buffer_shmem: typing.Optional[SharedMemory] = None
     buffer_arr: typing.Optional[npt.NDArray] = None
     meta_hash: int = -1
+    # The dimension currently buffered along; see ShMemCircBuffSettings.axis.
+    buff_axis: typing.Optional[str] = None
     # Segment holding the serialized static metadata (see .aux_meta).
     aux_shmem: typing.Optional[SharedMemory] = None
     # The (dims, axes, attrs, key) we last encoded, held by reference for the
@@ -388,8 +405,9 @@ class ShMemCircBuff(ez.Unit):
         # meta.shape already describes that order, so dims must too -- a reader
         # given the sender's original order would have to know to re-roll it,
         # which is knowledge it has no way to arrive at.
-        rolled_dims = [self.SETTINGS.axis] + [d for d in msg.dims if d != self.SETTINGS.axis]
-        blob, dropped = encode_aux(rolled_dims, msg.axes, msg.attrs, msg.key, self.SETTINGS.axis)
+        buff_axis = self.STATE.buff_axis
+        rolled_dims = [buff_axis] + [d for d in msg.dims if d != buff_axis]
+        blob, dropped = encode_aux(rolled_dims, msg.axes, msg.attrs, msg.key, buff_axis, chunk_dim=msg.chunk_dim)
         if dropped:
             dropped_set = frozenset(dropped)
             if self.STATE.warned_dropped_attrs != dropped_set:
@@ -433,6 +451,17 @@ class ShMemCircBuff(ez.Unit):
             del self.STATE.aux_shmem
         self.STATE.aux_shmem = None
 
+    def _resolve_axis(self, msg: AxisArray) -> typing.Optional[str]:
+        """The dimension to buffer along, or None if this message has none.
+
+        An explicit setting wins so an operator can still drive a producer that
+        declares nothing; otherwise the message decides.
+        """
+        axis = self.SETTINGS.axis if self.SETTINGS.axis is not None else msg.chunk_dim
+        if axis is None:
+            axis = "time" if "time" in msg.dims else None
+        return axis
+
     def _n_frames_for_axis(self, axis: AxisBase) -> int:
         """
         Utility function to calculate the number of frames to allocate for the buffer.
@@ -459,8 +488,9 @@ class ShMemCircBuff(ez.Unit):
             A tuple of metadata extracted from the message.
             msg_dtype, msg_srate, n_frames, frame_shape
         """
-        ax_idx = msg.get_axis_idx(self.SETTINGS.axis)
-        axis = msg.axes[self.SETTINGS.axis]
+        buff_axis = self.STATE.buff_axis
+        ax_idx = msg.get_axis_idx(buff_axis)
+        axis = msg.axes[buff_axis]
         n_frames = self._n_frames_for_axis(axis)
         frame_shape = msg.data.shape[:ax_idx] + msg.data.shape[ax_idx + 1 :]
         data = np.moveaxis(msg.data, ax_idx, 0)
@@ -558,10 +588,17 @@ class ShMemCircBuff(ez.Unit):
         if not isinstance(msg, AxisArray):
             return
 
-        if self.SETTINGS.axis not in msg.dims:
+        buff_axis = self._resolve_axis(msg)
+        if buff_axis is None or buff_axis not in msg.dims:
             return
+        if buff_axis != self.STATE.buff_axis:
+            # The dimension the stream accumulates along changed under us -- a
+            # windowing stage inserted upstream, say. The buffer describes the
+            # old one, so it cannot be appended to.
+            self.STATE.buff_axis = buff_axis
+            self._cleanup_buffer()
 
-        ax_idx = msg.get_axis_idx(self.SETTINGS.axis)
+        ax_idx = msg.get_axis_idx(buff_axis)
         data = np.moveaxis(msg.data, ax_idx, 0)
 
         # Check if we need to update the metadata, and if so, reset the buffer.

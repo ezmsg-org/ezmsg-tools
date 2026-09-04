@@ -18,13 +18,23 @@ classes. The two halves of a shmem link are separate processes and may be
 separate environments with different ezmsg versions installed; pinning the wire
 format to ezmsg's dataclass layout would make an upgrade on one side a silent
 decode failure on the other. Plain dicts cost one down-conversion and buy
-version independence. ``AUX_FORMAT_VERSION`` guards the shape of the dict
-itself.
+version independence.
+
+``AUX_FORMAT_VERSION`` guards *incompatible* changes to the dict. Adding a key
+is not one: a reader that predates it ignores what it does not know, and a
+reader that expects it reads a default when an older writer omits it, so both
+directions keep working. Bumping the version for an additive change would break
+exactly the mixed-version pairing this format exists to support.
 
 Axes decode to::
 
     {"kind": "linear", "unit": str, "gain": float, "offset": float}
     {"kind": "coord",  "unit": str, "dims": list[str], "data": np.ndarray}
+
+``chunk_dim`` carries the source message's declaration of which dimension it
+accumulates along, or ``None`` from a producer that declares nothing. It is
+what the sink used to choose ``buffered_axis``, recorded so a consumer can tell
+the two apart -- an operator may have overridden the buffered axis.
 
 The buffered axis (normally ``time``) is a deliberate special case: its
 ``offset`` advances with every message and a coordinate time axis's ``data`` is
@@ -92,6 +102,7 @@ def encode_aux(
     attrs: typing.Mapping[str, typing.Any],
     key: str,
     buffered_axis: str,
+    chunk_dim: typing.Optional[str] = None,
 ) -> tuple[bytes, list[str]]:
     """Serialize an AxisArray's static metadata.
 
@@ -113,6 +124,7 @@ def encode_aux(
         "attrs": plain_attrs,
         "key": key,
         "buffered_axis": buffered_axis,
+        "chunk_dim": chunk_dim,
     }
     return pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL), dropped
 
@@ -134,22 +146,27 @@ def decode_aux(blob: bytes) -> dict:
         raise ValueError(
             f"shmem metadata blob is format version {version!r}, this build understands {AUX_FORMAT_VERSION}"
         )
+    # Additive keys are defaulted rather than required, so a blob from a writer
+    # that predates them still decodes. See the module docstring.
+    payload.setdefault("chunk_dim", None)
     return payload
 
 
 def _axis_equal(a: typing.Any, b: typing.Any) -> bool:
     """Value equality for one axis, compared field by field.
 
-    Deliberately does not use ``==``. As of ezmsg 3.6, ``CoordinateAxis.__eq__``
-    resolves through the MRO to the dataclass-generated ``AxisBase.__eq__``,
-    which compares ``unit`` and nothing else -- ``ArrayWithNamedDims.__eq__``,
-    written to compare ``dims`` and ``data``, is shadowed and never runs. Two
-    coordinate axes with different data, or even different lengths, therefore
-    compare equal. Relying on that would mean a channel relabelling silently
-    never reaching the far side of the shmem link, which is the one thing this
-    module exists to deliver. Comparing explicitly also keeps the check correct
-    across ezmsg versions, which matters given the two halves of a link need not
-    share one.
+    Deliberately does not use ``==``. From ezmsg 3.6 to 3.9,
+    ``CoordinateAxis.__eq__`` resolved through the MRO to the
+    dataclass-generated ``AxisBase.__eq__``, which compares ``unit`` and nothing
+    else -- ``ArrayWithNamedDims.__eq__``, written to compare ``dims`` and
+    ``data``, was shadowed and never ran. Two coordinate axes with different
+    data, or even different lengths, compared equal. Relying on that would mean
+    a channel relabelling silently never reaching the far side of the shmem
+    link, which is the one thing this module exists to deliver.
+
+    Fixed in ezmsg 3.10, but the explicit comparison stays: the two halves of a
+    link need not share an ezmsg version, and a writer on 3.9 is still a writer
+    this has to be correct for.
     """
     a_data = getattr(a, "data", None)
     b_data = getattr(b, "data", None)
@@ -163,6 +180,16 @@ def _axis_equal(a: typing.Any, b: typing.Any) -> bool:
         return False
     if a_data is b_data:
         return True
+    # ezmsg >= 3.10 derives a cached content digest per axis object. Ask before
+    # reading the bytes: an upstream that computed it -- every ezmsg source does
+    # now -- makes this comparison O(1) on an axis this process has already
+    # seen, where `array_equal` is O(bytes) every message. Absent on older
+    # ezmsg, and None for a dtype it cannot digest, so it is a pure fast path.
+    a_fp = getattr(a, "fingerprint", None)
+    if a_fp is not None:
+        b_fp = getattr(b, "fingerprint", None)
+        if b_fp is not None:
+            return bool(a_fp == b_fp)
     if a_data.shape != b_data.shape or a_data.dtype != b_data.dtype:
         return False
     return bool(np.array_equal(a_data, b_data))

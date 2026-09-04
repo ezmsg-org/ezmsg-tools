@@ -19,6 +19,7 @@ import numpy as np
 from ..chmeta import channel_names
 
 __all__ = [
+    "stream_axis",
     "METRIC_AXIS_CANDIDATES",
     "METRIC_KINDS",
     "SWEEP_RENDERABLE_METRICS",
@@ -105,6 +106,30 @@ class StreamShape(typing.NamedTuple):
     def envelope(self) -> bool:
         """Whether each sample carries a (min, max) pair -- phosphor's envelope."""
         return self.metric is not None and self.metric.kind == "minmax"
+
+
+def stream_axis(msg: typing.Any, *fallbacks: str) -> str | None:
+    """Which dimension of *msg* the stream accumulates along.
+
+    Prefers the producer's own declaration
+    (:attr:`~ezmsg.util.messages.axisarray.AxisArray.chunk_dim`) and falls back
+    to the first of *fallbacks* the message actually has, which is what these
+    tools did before the field existed.
+
+    The fallback is a guess, and ``"time"`` is the wrong guess downstream of a
+    windowing stage: a ``(win, time, ch)`` message *has* a ``time`` dimension,
+    but it is the within-window lag, so a sweep plot keyed on it draws each
+    window's interior along the x-axis and treats the windows as channels --
+    and reads an offset that does not advance with the stream.
+    """
+    chunk_dim = getattr(msg, "chunk_dim", None)
+    dims = getattr(msg, "dims", ()) or ()
+    if chunk_dim is not None and chunk_dim in dims:
+        return chunk_dim
+    for name in fallbacks:
+        if name in dims:
+            return name
+    return None
 
 
 def metric_axis(dims: typing.Sequence[str], axes: typing.Mapping[str, typing.Any]) -> MetricSpec | None:

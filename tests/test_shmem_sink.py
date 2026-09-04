@@ -9,10 +9,10 @@ import pytest
 from ezmsg.simbiophys.eeg import EEGSynth
 from ezmsg.util.messagecodec import message_log
 from ezmsg.util.messagelogger import MessageLogger
-from ezmsg.util.messages.axisarray import AxisArray
+from ezmsg.util.messages.axisarray import AxisArray, CoordinateAxis
 from ezmsg.util.terminate import TerminateOnTotal
 
-from ezmsg.tools.shmem.shmem import ShMemCircBuff
+from ezmsg.tools.shmem.shmem import ShMemCircBuff, ShMemCircBuffSettings
 
 
 class CrazyUnitSettings(ez.Settings):
@@ -113,3 +113,102 @@ def test_shmem_change(change_type: str):
         assert all(msg.data.dtype == float for msg in messages)
 
     file_path.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Which dimension the ring is a history along
+# ---------------------------------------------------------------------------
+
+
+def _windowed_msg(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, chunk_dim: str | None = "win") -> AxisArray:
+    """`(win, time, ch)` -- what a windowing stage emits.
+
+    `time` is the *within-window* lag dimension. Both it and `win` are
+    LinearAxes, so nothing distinguishes them but `chunk_dim`.
+    """
+    kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+    return AxisArray(
+        np.zeros((n_win, n_lag, n_ch), np.float32),
+        dims=["win", "time", "ch"],
+        axes={
+            "win": AxisArray.TimeAxis(fs=10.0),
+            "time": AxisArray.TimeAxis(fs=100.0),
+            "ch": CoordinateAxis(data=np.array(["a", "b", "c"]), dims=["ch"]),
+        },
+        key="dev",
+        **kwargs,
+    )
+
+
+def _plain_msg(n_time: int = 20, n_ch: int = 3, chunk_dim: str | None = "time") -> AxisArray:
+    kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+    return AxisArray(
+        np.zeros((n_time, n_ch), np.float32),
+        dims=["time", "ch"],
+        axes={
+            "time": AxisArray.TimeAxis(fs=100.0),
+            "ch": CoordinateAxis(data=np.array(["a", "b", "c"]), dims=["ch"]),
+        },
+        key="dev",
+        **kwargs,
+    )
+
+
+def _sink(axis=None):
+    unit = ShMemCircBuff(ShMemCircBuffSettings(shmem_name=None, buf_dur=1.0, axis=axis))
+    unit.STATE = ShMemCircBuff.STATE()
+    return unit
+
+
+class TestTheBufferedAxisFollowsTheMessage:
+    """The ring is a history of the stream, so it has to be the dimension
+    messages accumulate along. `"time"` is present in a windowed message but is
+    the wrong one, so nothing rejected the old default -- it just buffered the
+    within-window samples and reported a 10x wrong sample rate.
+    """
+
+    def test_a_windowed_stream_resolves_to_win(self):
+        assert _sink()._resolve_axis(_windowed_msg()) == "win"
+
+    def test_a_plain_stream_resolves_to_time(self):
+        assert _sink()._resolve_axis(_plain_msg()) == "time"
+
+    def test_an_explicit_setting_still_wins(self):
+        """For a producer that declares nothing, an operator must still be able
+        to say which dimension to buffer."""
+        assert _sink(axis="time")._resolve_axis(_windowed_msg()) == "time"
+
+    def test_an_undeclared_producer_falls_back_to_time(self):
+        """Nothing better is available. A windowed producer that declares no
+        `chunk_dim` still gets the old, wrong answer -- the fix is for it to
+        declare one, which every ezmsg source now does."""
+        assert _sink()._resolve_axis(_plain_msg(chunk_dim=None)) == "time"
+        assert _sink()._resolve_axis(_windowed_msg(chunk_dim=None)) == "time"
+
+    def test_a_message_with_neither_is_skipped(self):
+        msg = AxisArray(
+            np.zeros((4, 3), np.float32),
+            dims=["freq", "ch"],
+            axes={"freq": AxisArray.LinearAxis(gain=1.0)},
+            key="dev",
+        )
+        assert _sink()._resolve_axis(msg) is None
+
+    def test_what_the_old_default_did_to_a_windowed_stream(self):
+        """Buffering `time` puts the window *count* inside the frame, so the
+        buffer is reallocated whenever the window count jitters, and the rate
+        reported to the viewer is the within-window rate."""
+        for axis, want_frame, want_rate in (("time", (4, 3), 100.0), ("win", (10, 3), 10.0)):
+            msg = _windowed_msg(n_win=4)
+            ax_idx = msg.get_axis_idx(axis)
+            frame_shape = msg.data.shape[:ax_idx] + msg.data.shape[ax_idx + 1 :]
+            assert frame_shape == want_frame
+            assert 1 / msg.axes[axis].gain == want_rate
+
+        # ...and the window count is not stable, so `time` reshapes the frame.
+        shapes = set()
+        for n_win in (4, 7, 5):
+            msg = _windowed_msg(n_win=n_win)
+            ax_idx = msg.get_axis_idx("time")
+            shapes.add(msg.data.shape[:ax_idx] + msg.data.shape[ax_idx + 1 :])
+        assert len(shapes) == 3, "frame shape must vary with window count when buffering `time`"
