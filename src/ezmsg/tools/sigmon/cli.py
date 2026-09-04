@@ -22,6 +22,7 @@ from ezmsg.tools.plot.describe import (
     describe_axisarray,
     flatten_for_plot,
     require_sweep_renderable,
+    stream_axis,
 )
 from ezmsg.tools.sigmon.dag_widget import DAGWidget
 
@@ -222,7 +223,8 @@ class SigmonWindow(QMainWindow):
         widget = self._plot_widget
 
         if isinstance(widget, SweepWidget):
-            time_idx = msg.get_axis_idx("time") if "time" in msg.dims else 0
+            sweep_dim = stream_axis(msg, "time")
+            time_idx = msg.get_axis_idx(sweep_dim) if sweep_dim else 0
             shape = self._shape or describe_axisarray(msg)
             data = flatten_for_plot(np.moveaxis(msg.data, time_idx, 0), shape)
             widget.push_data(data.astype(np.float32))
@@ -238,8 +240,9 @@ class SigmonWindow(QMainWindow):
             # Scatter expects (n_channels,) or (n_samples, n_channels).
             if len(msg.shape) > 1:
                 targ_idx = 0
-                if "time" in msg.dims or "freq" in msg.dims:
-                    targ_idx = msg.get_axis_idx("time") if "time" in msg.dims else msg.get_axis_idx("freq")
+                targ_dim = stream_axis(msg, "time", "freq")
+                if targ_dim is not None:
+                    targ_idx = msg.get_axis_idx(targ_dim)
                 n_items = msg.shape[targ_idx]
                 n_channels = msg.data.size // n_items if n_items > 0 else 1
                 data_2d = np.moveaxis(msg.data, targ_idx, 0).reshape(n_items, n_channels)

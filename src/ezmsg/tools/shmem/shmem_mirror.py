@@ -121,6 +121,22 @@ class EZShmMirror:
         return None if self._aux is None else self._aux["dims"]
 
     @property
+    def chunk_dim(self) -> typing.Optional[str]:
+        """Which dimension the *source* declared it accumulates along.
+
+        Distinct from the buffered axis: an operator can override that, and a
+        producer on ezmsg < 3.10 declares nothing, in which case this is None.
+        """
+        self._refresh_aux()
+        return None if self._aux is None else self._aux.get("chunk_dim")
+
+    @property
+    def buffered_axis(self) -> typing.Optional[str]:
+        """Which dimension the ring is a history along."""
+        self._refresh_aux()
+        return None if self._aux is None else self._aux.get("buffered_axis")
+
+    @property
     def metadata_available(self) -> bool:
         """Whether a decoded metadata blob is currently held."""
         self._refresh_aux()

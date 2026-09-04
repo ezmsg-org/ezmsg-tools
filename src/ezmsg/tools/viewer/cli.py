@@ -23,6 +23,7 @@ from ezmsg.tools.plot.describe import (
     describe_axisarray,
     flatten_for_plot,
     require_sweep_renderable,
+    stream_axis,
 )
 
 logger = logging.getLogger(__name__)
@@ -172,12 +173,15 @@ class ViewerWindow(QMainWindow):
         widget = self._plot_widget
 
         if isinstance(widget, SweepWidget):
-            time_idx = msg.get_axis_idx("time") if "time" in msg.dims else 0
+            # The dimension the stream accumulates along, which is `win` rather
+            # than `time` downstream of a windowing stage. See `stream_axis`.
+            sweep_dim = stream_axis(msg, "time")
+            time_idx = msg.get_axis_idx(sweep_dim) if sweep_dim else 0
             shape = self._shape or describe_axisarray(msg)
             data = flatten_for_plot(np.moveaxis(msg.data, time_idx, 0), shape)
-            # Pass the AxisArray time-axis offset so the sweep buffer
-            # tracks the same clock as the event timestamps.
-            ts = msg.get_axis("time").offset if "time" in msg.dims else None
+            # Pass that axis's offset so the sweep buffer tracks the same clock
+            # as the event timestamps.
+            ts = msg.get_axis(sweep_dim).offset if sweep_dim else None
             widget.push_data(data.astype(np.float32), timestamps=ts)
 
         elif isinstance(widget, SpectrumWidget):
@@ -189,9 +193,8 @@ class ViewerWindow(QMainWindow):
 
         elif isinstance(widget, ScatterWidget):
             if len(msg.shape) > 1:
-                targ_idx = 0
-                if "time" in msg.dims or "freq" in msg.dims:
-                    targ_idx = msg.get_axis_idx("time") if "time" in msg.dims else msg.get_axis_idx("freq")
+                targ_dim = stream_axis(msg, "time", "freq")
+                targ_idx = msg.get_axis_idx(targ_dim) if targ_dim else 0
                 n_items = msg.shape[targ_idx]
                 n_channels = msg.data.size // n_items if n_items > 0 else 1
                 data_2d = np.moveaxis(msg.data, targ_idx, 0).reshape(n_items, n_channels)

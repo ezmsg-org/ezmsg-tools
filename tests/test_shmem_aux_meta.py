@@ -19,11 +19,12 @@ from pathlib import Path
 import ezmsg.core as ez
 import numpy as np
 import pytest
-from ezmsg.util.messages.axisarray import AxisArray
+from ezmsg.util.messages.axisarray import AxisArray, CoordinateAxis
 
 from ezmsg.tools.chmeta import available_fields, channel_names
 from ezmsg.tools.shmem.aux_meta import (
     AUX_FORMAT_VERSION,
+    _axis_equal,
     attrs_equal,
     axes_equal,
     decode_aux,
@@ -434,3 +435,104 @@ def test_reader_rejects_a_foreign_header_loudly():
     finally:
         shm.close()
         shm.unlink()
+
+
+# ---------------------------------------------------------------------------
+# chunk_dim: which dimension the stream accumulates along
+# ---------------------------------------------------------------------------
+
+
+def _windowed(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, chunk_dim: str | None = "win") -> AxisArray:
+    """`(win, time, ch)` -- what a windowing stage emits.
+
+    `time` here is the *within-window* lag dimension. Both are LinearAxes, so
+    nothing about the message distinguishes them except `chunk_dim`.
+    """
+    kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+    return AxisArray(
+        np.zeros((n_win, n_lag, n_ch), np.float32),
+        dims=["win", "time", "ch"],
+        axes={
+            "win": AxisArray.TimeAxis(fs=10.0),
+            "time": AxisArray.TimeAxis(fs=100.0),
+            "ch": CoordinateAxis(data=np.array(["a", "b", "c"]), dims=["ch"]),
+        },
+        key="dev",
+        **kwargs,
+    )
+
+
+class TestTheBlobCarriesChunkDim:
+    def test_it_round_trips(self):
+        msg = _windowed()
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", chunk_dim=msg.chunk_dim)
+        assert decode_aux(blob)["chunk_dim"] == "win"
+
+    def test_none_from_a_producer_that_declares_nothing(self):
+        msg = _windowed(chunk_dim=None)
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", chunk_dim=msg.chunk_dim)
+        assert decode_aux(blob)["chunk_dim"] is None
+
+    def test_it_is_distinct_from_the_buffered_axis(self):
+        """An operator can override which axis the ring buffers; the source's
+        own declaration is recorded separately so a consumer can tell."""
+        msg = _windowed()
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "time", chunk_dim=msg.chunk_dim)
+        payload = decode_aux(blob)
+        assert payload["buffered_axis"] == "time"
+        assert payload["chunk_dim"] == "win"
+
+    def test_a_blob_written_before_the_key_existed_still_decodes(self):
+        """Adding a key must not break a mixed-version link -- that pairing is
+        the whole reason this format is plain dicts. See the module docstring."""
+        import pickle
+
+        msg = _windowed()
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", chunk_dim="win")
+        payload = pickle.loads(blob)
+        del payload["chunk_dim"]  # what an older writer emits
+        old_blob = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
+
+        decoded = decode_aux(old_blob)
+        assert decoded["chunk_dim"] is None
+        assert decoded["buffered_axis"] == "win"
+
+
+class TestTheFingerprintFastPath:
+    """`_axis_equal` asks for the cached digest before reading the bytes. It has
+    to stay exactly as discriminating as the byte comparison it replaces."""
+
+    @staticmethod
+    def _coord(labels):
+        return CoordinateAxis(data=np.array(labels), dims=["ch"])
+
+    def test_equal_content_in_distinct_objects_compares_equal(self):
+        a, b = self._coord(["a", "b", "c"]), self._coord(["a", "b", "c"])
+        assert a is not b
+        assert _axis_equal(a, b)
+
+    def test_a_relabel_at_fixed_length_compares_unequal(self):
+        """The case the module exists to deliver: same key, same channel count,
+        different channels."""
+        assert not _axis_equal(self._coord(["a", "b", "c"]), self._coord(["x", "y", "z"]))
+
+    def test_a_length_change_compares_unequal(self):
+        assert not _axis_equal(self._coord(["a", "b"]), self._coord(["a", "b", "c"]))
+
+    def test_it_uses_the_digest_when_one_is_available(self):
+        a, b = self._coord(["a", "b", "c"]), self._coord(["a", "b", "c"])
+        a.fingerprint  # prime, as every ezmsg source now does
+        b.fingerprint
+        called = []
+        real = np.array_equal
+
+        def spy(*args, **kwargs):
+            called.append(1)
+            return real(*args, **kwargs)
+
+        np.array_equal = spy
+        try:
+            assert _axis_equal(a, b)
+        finally:
+            np.array_equal = real
+        assert not called, "should have settled on the digest without reading the bytes"
