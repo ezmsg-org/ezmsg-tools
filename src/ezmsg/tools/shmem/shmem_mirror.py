@@ -121,14 +121,14 @@ class EZShmMirror:
         return None if self._aux is None else self._aux["dims"]
 
     @property
-    def chunk_dim(self) -> typing.Optional[str]:
+    def stream_dim(self) -> typing.Optional[str]:
         """Which dimension the *source* declared it accumulates along.
 
         Distinct from the buffered axis: an operator can override that, and a
         producer on ezmsg < 3.10 declares nothing, in which case this is None.
         """
         self._refresh_aux()
-        return None if self._aux is None else self._aux.get("chunk_dim")
+        return None if self._aux is None else self._aux.get("stream_dim")
 
     @property
     def buffered_axis(self) -> typing.Optional[str]:

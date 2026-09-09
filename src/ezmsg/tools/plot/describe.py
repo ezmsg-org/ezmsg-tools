@@ -112,7 +112,7 @@ def stream_axis(msg: typing.Any, *fallbacks: str) -> str | None:
     """Which dimension of *msg* the stream accumulates along.
 
     Prefers the producer's own declaration
-    (:attr:`~ezmsg.util.messages.axisarray.AxisArray.chunk_dim`) and falls back
+    (:attr:`~ezmsg.util.messages.axisarray.AxisArray.stream_dim`) and falls back
     to the first of *fallbacks* the message actually has, which is what these
     tools did before the field existed.
 
@@ -122,10 +122,10 @@ def stream_axis(msg: typing.Any, *fallbacks: str) -> str | None:
     window's interior along the x-axis and treats the windows as channels --
     and reads an offset that does not advance with the stream.
     """
-    chunk_dim = getattr(msg, "chunk_dim", None)
+    stream_dim = getattr(msg, "stream_dim", None)
     dims = getattr(msg, "dims", ()) or ()
-    if chunk_dim is not None and chunk_dim in dims:
-        return chunk_dim
+    if stream_dim is not None and stream_dim in dims:
+        return stream_dim
     for name in fallbacks:
         if name in dims:
             return name

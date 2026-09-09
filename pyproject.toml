@@ -9,10 +9,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dynamic = ["version"]
 dependencies = [
-  # 3.10.0b2 for AxisArray.chunk_dim, which the shmem sink follows to pick
+  # 3.10.0b3 for AxisArray.stream_dim, which the shmem sink follows to pick
   # the buffered axis, and CoordinateAxis.fingerprint, which aux_meta uses
   # to compare axes without touching their bytes.
-  "ezmsg>=3.10.0b2",
+  "ezmsg>=3.10.0b3",
   "numpy>=1.26.0",
   "typer>=0.24.1",
 ]

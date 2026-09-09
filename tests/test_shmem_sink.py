@@ -120,13 +120,13 @@ def test_shmem_change(change_type: str):
 # ---------------------------------------------------------------------------
 
 
-def _windowed_msg(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, chunk_dim: str | None = "win") -> AxisArray:
+def _windowed_msg(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, stream_dim: str | None = "win") -> AxisArray:
     """`(win, time, ch)` -- what a windowing stage emits.
 
     `time` is the *within-window* lag dimension. Both it and `win` are
-    LinearAxes, so nothing distinguishes them but `chunk_dim`.
+    LinearAxes, so nothing distinguishes them but `stream_dim`.
     """
-    kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+    kwargs = {"stream_dim": stream_dim} if stream_dim else {}
     return AxisArray(
         np.zeros((n_win, n_lag, n_ch), np.float32),
         dims=["win", "time", "ch"],
@@ -140,8 +140,8 @@ def _windowed_msg(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, chunk_dim: str
     )
 
 
-def _plain_msg(n_time: int = 20, n_ch: int = 3, chunk_dim: str | None = "time") -> AxisArray:
-    kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+def _plain_msg(n_time: int = 20, n_ch: int = 3, stream_dim: str | None = "time") -> AxisArray:
+    kwargs = {"stream_dim": stream_dim} if stream_dim else {}
     return AxisArray(
         np.zeros((n_time, n_ch), np.float32),
         dims=["time", "ch"],
@@ -180,10 +180,10 @@ class TestTheBufferedAxisFollowsTheMessage:
 
     def test_an_undeclared_producer_falls_back_to_time(self):
         """Nothing better is available. A windowed producer that declares no
-        `chunk_dim` still gets the old, wrong answer -- the fix is for it to
+        `stream_dim` still gets the old, wrong answer -- the fix is for it to
         declare one, which every ezmsg source now does."""
-        assert _sink()._resolve_axis(_plain_msg(chunk_dim=None)) == "time"
-        assert _sink()._resolve_axis(_windowed_msg(chunk_dim=None)) == "time"
+        assert _sink()._resolve_axis(_plain_msg(stream_dim=None)) == "time"
+        assert _sink()._resolve_axis(_windowed_msg(stream_dim=None)) == "time"
 
     def test_a_message_with_neither_is_skipped(self):
         msg = AxisArray(
