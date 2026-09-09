@@ -31,7 +31,7 @@ Axes decode to::
     {"kind": "linear", "unit": str, "gain": float, "offset": float}
     {"kind": "coord",  "unit": str, "dims": list[str], "data": np.ndarray}
 
-``chunk_dim`` carries the source message's declaration of which dimension it
+``stream_dim`` carries the source message's declaration of which dimension it
 accumulates along, or ``None`` from a producer that declares nothing. It is
 what the sink used to choose ``buffered_axis``, recorded so a consumer can tell
 the two apart -- an operator may have overridden the buffered axis.
@@ -102,7 +102,7 @@ def encode_aux(
     attrs: typing.Mapping[str, typing.Any],
     key: str,
     buffered_axis: str,
-    chunk_dim: typing.Optional[str] = None,
+    stream_dim: typing.Optional[str] = None,
 ) -> tuple[bytes, list[str]]:
     """Serialize an AxisArray's static metadata.
 
@@ -124,7 +124,7 @@ def encode_aux(
         "attrs": plain_attrs,
         "key": key,
         "buffered_axis": buffered_axis,
-        "chunk_dim": chunk_dim,
+        "stream_dim": stream_dim,
     }
     return pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL), dropped
 
@@ -148,7 +148,7 @@ def decode_aux(blob: bytes) -> dict:
         )
     # Additive keys are defaulted rather than required, so a blob from a writer
     # that predates them still decodes. See the module docstring.
-    payload.setdefault("chunk_dim", None)
+    payload.setdefault("stream_dim", None)
     return payload
 
 

@@ -438,17 +438,17 @@ def test_reader_rejects_a_foreign_header_loudly():
 
 
 # ---------------------------------------------------------------------------
-# chunk_dim: which dimension the stream accumulates along
+# stream_dim: which dimension the stream accumulates along
 # ---------------------------------------------------------------------------
 
 
-def _windowed(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, chunk_dim: str | None = "win") -> AxisArray:
+def _windowed(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, stream_dim: str | None = "win") -> AxisArray:
     """`(win, time, ch)` -- what a windowing stage emits.
 
     `time` here is the *within-window* lag dimension. Both are LinearAxes, so
-    nothing about the message distinguishes them except `chunk_dim`.
+    nothing about the message distinguishes them except `stream_dim`.
     """
-    kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+    kwargs = {"stream_dim": stream_dim} if stream_dim else {}
     return AxisArray(
         np.zeros((n_win, n_lag, n_ch), np.float32),
         dims=["win", "time", "ch"],
@@ -462,25 +462,25 @@ def _windowed(n_win: int = 4, n_lag: int = 10, n_ch: int = 3, chunk_dim: str | N
     )
 
 
-class TestTheBlobCarriesChunkDim:
+class TestTheBlobCarriesStreamDim:
     def test_it_round_trips(self):
         msg = _windowed()
-        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", chunk_dim=msg.chunk_dim)
-        assert decode_aux(blob)["chunk_dim"] == "win"
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", stream_dim=msg.stream_dim)
+        assert decode_aux(blob)["stream_dim"] == "win"
 
     def test_none_from_a_producer_that_declares_nothing(self):
-        msg = _windowed(chunk_dim=None)
-        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", chunk_dim=msg.chunk_dim)
-        assert decode_aux(blob)["chunk_dim"] is None
+        msg = _windowed(stream_dim=None)
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", stream_dim=msg.stream_dim)
+        assert decode_aux(blob)["stream_dim"] is None
 
     def test_it_is_distinct_from_the_buffered_axis(self):
         """An operator can override which axis the ring buffers; the source's
         own declaration is recorded separately so a consumer can tell."""
         msg = _windowed()
-        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "time", chunk_dim=msg.chunk_dim)
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "time", stream_dim=msg.stream_dim)
         payload = decode_aux(blob)
         assert payload["buffered_axis"] == "time"
-        assert payload["chunk_dim"] == "win"
+        assert payload["stream_dim"] == "win"
 
     def test_a_blob_written_before_the_key_existed_still_decodes(self):
         """Adding a key must not break a mixed-version link -- that pairing is
@@ -488,13 +488,13 @@ class TestTheBlobCarriesChunkDim:
         import pickle
 
         msg = _windowed()
-        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", chunk_dim="win")
+        blob, _ = encode_aux(list(msg.dims), msg.axes, msg.attrs, msg.key, "win", stream_dim="win")
         payload = pickle.loads(blob)
-        del payload["chunk_dim"]  # what an older writer emits
+        del payload["stream_dim"]  # what an older writer emits
         old_blob = pickle.dumps(payload, protocol=pickle.HIGHEST_PROTOCOL)
 
         decoded = decode_aux(old_blob)
-        assert decoded["chunk_dim"] is None
+        assert decoded["stream_dim"] is None
         assert decoded["buffered_axis"] == "win"
 
 

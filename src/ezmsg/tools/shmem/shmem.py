@@ -159,7 +159,7 @@ class ShMemCircBuffSettings(ez.Settings):
     conn: typing.Optional[multiprocessing.connection.Connection] = None
 
     axis: typing.Optional[str] = None
-    """Dimension to buffer along. ``None`` follows the message's ``chunk_dim``.
+    """Dimension to buffer along. ``None`` follows the message's ``stream_dim``.
 
     The ring is a history of the stream, so this has to be the dimension
     messages accumulate along; buffering a static one would store the same
@@ -171,7 +171,7 @@ class ShMemCircBuffSettings(ez.Settings):
     window count ended up inside ``frame_shape`` -- reallocating the buffer
     whenever the window count jittered -- and the reported sample rate was the
     within-window rate, a 10x error in the viewer's time base for a 10-sample
-    window. Set explicitly only for a producer that declares no ``chunk_dim``.
+    window. Set explicitly only for a producer that declares no ``stream_dim``.
     """
 
 
@@ -407,7 +407,7 @@ class ShMemCircBuff(ez.Unit):
         # which is knowledge it has no way to arrive at.
         buff_axis = self.STATE.buff_axis
         rolled_dims = [buff_axis] + [d for d in msg.dims if d != buff_axis]
-        blob, dropped = encode_aux(rolled_dims, msg.axes, msg.attrs, msg.key, buff_axis, chunk_dim=msg.chunk_dim)
+        blob, dropped = encode_aux(rolled_dims, msg.axes, msg.attrs, msg.key, buff_axis, stream_dim=msg.stream_dim)
         if dropped:
             dropped_set = frozenset(dropped)
             if self.STATE.warned_dropped_attrs != dropped_set:
@@ -457,7 +457,7 @@ class ShMemCircBuff(ez.Unit):
         An explicit setting wins so an operator can still drive a producer that
         declares nothing; otherwise the message decides.
         """
-        axis = self.SETTINGS.axis if self.SETTINGS.axis is not None else msg.chunk_dim
+        axis = self.SETTINGS.axis if self.SETTINGS.axis is not None else msg.stream_dim
         if axis is None:
             axis = "time" if "time" in msg.dims else None
         return axis

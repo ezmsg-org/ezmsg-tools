@@ -233,8 +233,8 @@ class TestStreamAxis:
     """
 
     @staticmethod
-    def _windowed(chunk_dim="win"):
-        kwargs = {"chunk_dim": chunk_dim} if chunk_dim else {}
+    def _windowed(stream_dim="win"):
+        kwargs = {"stream_dim": stream_dim} if stream_dim else {}
         return AxisArray(
             np.zeros((4, 10, 3), np.float32),
             dims=["win", "time", "ch"],
@@ -247,7 +247,7 @@ class TestStreamAxis:
         assert stream_axis(self._windowed(), "time") == "win"
 
     def test_it_falls_back_when_nothing_is_declared(self):
-        assert stream_axis(self._windowed(chunk_dim=None), "time") == "time"
+        assert stream_axis(self._windowed(stream_dim=None), "time") == "time"
 
     def test_the_fallback_order_is_honoured(self):
         msg = AxisArray(
@@ -259,7 +259,7 @@ class TestStreamAxis:
         assert stream_axis(msg, "time", "freq") == "freq"
 
     def test_a_declaration_naming_an_absent_dim_is_ignored(self):
-        """`chunk_dim` is validated at construction, but a message can reach a
+        """`stream_dim` is validated at construction, but a message can reach a
         viewer after a transform that dropped the dimension without updating
         it. Falling back beats indexing on a name that is not there."""
         msg = AxisArray(
@@ -267,9 +267,9 @@ class TestStreamAxis:
             dims=["time", "ch"],
             axes={"time": AxisArray.TimeAxis(fs=100.0)},
             key="dev",
-            chunk_dim="time",
+            stream_dim="time",
         )
-        object.__setattr__(msg, "chunk_dim", "win")
+        object.__setattr__(msg, "stream_dim", "win")
         assert stream_axis(msg, "time") == "time"
 
     def test_none_when_nothing_matches(self):
@@ -282,6 +282,6 @@ class TestStreamAxis:
             dims=["time", "ch"],
             axes={"time": AxisArray.TimeAxis(fs=100.0)},
             key="dev",
-            chunk_dim="time",
+            stream_dim="time",
         )
         assert stream_axis(msg, "time") == "time"
