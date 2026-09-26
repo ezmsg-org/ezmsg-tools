@@ -12,7 +12,7 @@ dependencies = [
   # 3.10.0b3 for AxisArray.stream_dim, which the shmem sink follows to pick
   # the buffered axis, and CoordinateAxis.fingerprint, which aux_meta uses
   # to compare axes without touching their bytes.
-  "ezmsg>=3.10.0b3",
+  "ezmsg>=3.10.0b4",
   "numpy>=1.26.0",
   "typer>=0.24.1",
 ]
