@@ -249,6 +249,8 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         else:
             self._sweep.update_config(self._config_for(shape))
             self._sweep.set_channel_labels(self._labels_for(shape))
+            if self._controls is not None:
+                self._controls.set_amplitude_unit(shape.unit)
 
     def _labels_for(self, shape: StreamShape) -> list[str]:
         labels = shape.channel_labels
@@ -306,5 +308,6 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         self._sweep.set_channel_labels_visible(True)
         if self._show_controls:
             self._controls = ChannelPlotControlsWidget(self._sweep, parent=self)
+            self._controls.set_amplitude_unit(shape.unit)
             self._layout.addWidget(self._controls)
         self.on_plot_built()
