@@ -182,3 +182,40 @@ def test_shmem_mirror_switch_buffer():
         print(f"\tFrom {dt0} to {switch_dt} after {np.sum(chunk_lens[:switch_idx])} samples")
     assert dt0 == np.float64
     assert switch_dt == np.float16
+
+
+def test_each_frame_carries_its_timestamp_across_a_wrap():
+    """The reader gets each frame's time from the same ring slots as the frame.
+
+    Driven in-process (no ez.run) so it is deterministic: 100 Hz into a 1 s
+    ring, in chunks that straddle the wrap, read back after each push.
+    """
+    import asyncio
+
+    from ezmsg.tools.shmem.shmem import ShMemCircBuffSettings
+
+    name = f"times{os.getpid()}"
+    sink = ShMemCircBuff(ShMemCircBuffSettings(shmem_name=name, buf_dur=1.0, axis="time"))
+    sink.STATE = ShMemCircBuff.STATE()
+    sink._reset_meta()
+    mirror = EZShmMirror(name)
+    try:
+        got_frames, got_times = [], []
+        t0, n = 1000.0, 0
+        for chunk in (40, 40, 40, 40):  # 160 frames through a 100-frame ring
+            data = np.arange(n, n + chunk, dtype=np.float32)[:, None] * np.ones((1, 2), np.float32)
+            msg = AxisArray(data, dims=["time", "ch"], axes={"time": AxisArray.TimeAxis(fs=100.0, offset=t0 + n / 100)})
+            asyncio.run(sink.on_message(msg))
+            n += chunk
+            frames, times, overflow = mirror.timed_view()
+            assert not overflow
+            got_frames.append(frames[:, 0].copy())
+            got_times.append(times)
+        frames, times = np.concatenate(got_frames), np.concatenate(got_times)
+        # Whatever frames came back, each one's time is the time it was sent with.
+        assert len(frames) > 100
+        np.testing.assert_allclose(times, t0 + frames / 100)
+    finally:
+        mirror.disconnect()
+        sink._cleanup_buffer()
+        sink._cleanup_meta()

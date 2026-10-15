@@ -208,7 +208,7 @@ class ShmemSweepWidget(QtWidgets.QWidget):
                 logger.exception("closing the sweep figure raised; continuing teardown")
 
     def _on_tick(self) -> None:
-        samples, _overflow = self._mirror.auto_view()
+        samples, times, _overflow = self._mirror.timed_view()
 
         shape = describe_mirror(self._mirror, label_fields=self._label_fields)
         if shape is None or shape.srate <= 0:
@@ -232,7 +232,9 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         self._apply_shape(shape)
 
         if samples is not None and samples.size:
-            self._sweep.push_data(np.ascontiguousarray(flatten_for_plot(samples, shape), dtype=np.float32))
+            self._sweep.push_data(
+                np.ascontiguousarray(flatten_for_plot(samples, shape), dtype=np.float32), timestamps=times
+            )
 
         self.on_frame(shape)
 

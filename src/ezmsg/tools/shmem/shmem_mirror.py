@@ -24,6 +24,7 @@ from .shmem import (
     ShmemArrMeta,
     ShMemCircBuffState,
     ShmemVersionError,
+    ring_views,
     shorten_shmem_name,
 )
 
@@ -231,6 +232,7 @@ class EZShmMirror:
         if self._mirror_state.buffer_arr is not None:
             del self._mirror_state.buffer_arr
         self._mirror_state.buffer_arr = None
+        self._mirror_state.times_arr = None
 
         if self._mirror_state.buffer_shmem is not None:
             # Note: Uncommenting the following does not eliminate the resource_tracker warnings.
@@ -308,10 +310,8 @@ class EZShmMirror:
             buff_name = self._shmem_name + "/buffer" + str(self._mirror_state.meta_struct.buffer_generation)
             short_name = shorten_shmem_name(buff_name)
             self._mirror_state.buffer_shmem = SharedMemory(short_name, create=False)
-            self._mirror_state.buffer_arr = np.ndarray(
-                self._mirror_state.meta_struct.shape[: self._mirror_state.meta_struct.ndim],
-                dtype=np.dtype(self._mirror_state.meta_struct.dtype),
-                buffer=self._mirror_state.buffer_shmem.buf[:],
+            self._mirror_state.times_arr, self._mirror_state.buffer_arr = ring_views(
+                self._mirror_state.buffer_shmem.buf, self._mirror_state.meta_struct
             )
             self._last_meta = self.meta  # Copy
             if self._change_callback is not None:
@@ -319,10 +319,12 @@ class EZShmMirror:
             return True
         except FileNotFoundError:
             self._mirror_state.buffer_arr = None
+            self._mirror_state.times_arr = None
             self._mirror_state.buffer_shmem = None
         except TypeError:
             # buffer is too small for requested array
             self._mirror_state.buffer_arr = None
+            self._mirror_state.times_arr = None
             self._mirror_state.buffer_shmem = None
             print("DEBUG!")
         return False
@@ -351,6 +353,17 @@ class EZShmMirror:
         self._last_connect_try = time.time()
 
     def auto_view(self, n: typing.Optional[int] = None) -> typing.Tuple[npt.NDArray, bool]:
+        """The frames written since the last read, and whether the ring overran them."""
+        frames, _times, overflow = self.timed_view(n)
+        return frames, overflow
+
+    def timed_view(self, n: typing.Optional[int] = None) -> typing.Tuple[npt.NDArray, npt.NDArray, bool]:
+        """Like :meth:`auto_view`, plus each returned frame's timestamp.
+
+        The times are the buffered axis's values for those frames, as the
+        writer received them: the time axis's clock for a time-buffered stream.
+        """
+        no_times = np.empty(0, dtype=np.float64)
         if self._mirror_state.meta_struct is None:
             self.connect(self._shmem_name)
 
@@ -361,7 +374,7 @@ class EZShmMirror:
         if self._mirror_state.meta_struct is None or not self._mirror_state.meta_struct.bvalid:
             # Still not connected
             #  or we are connected but the buffer data is invalid.
-            return np.array([[]]), False
+            return np.array([[]]), no_times, False
 
         b_connected = True
         # Determine if we need to reset the buffer
@@ -374,7 +387,7 @@ class EZShmMirror:
 
         if not b_connected:
             # We STILL aren't connected.
-            return np.array([[]]), False
+            return np.array([[]]), no_times, False
 
         # -- From here, we should know we have a good connection to a valid buffer -- #
 
@@ -405,7 +418,7 @@ class EZShmMirror:
         if n_available <= 1 or (n is not None and n_available < n):
             # Not enough samples available.
             # Return a null-slice of the buffer. This provides correct dimensions.
-            return self._mirror_state.buffer_arr[:0], b_overflow
+            return self._mirror_state.buffer_arr[:0], no_times, b_overflow
 
         # We have enough samples.
         if n is None:
@@ -415,6 +428,7 @@ class EZShmMirror:
             # Return a contiguous chunk
             t_slice = np.s_[max(0, self._read_index) : self._read_index + n]
             result = self._mirror_state.buffer_arr[t_slice, :]
+            times = self._mirror_state.times_arr[t_slice].copy()
         else:
             # Split read into two chunks
             n_after_wrap = n - (self._mirror_state.meta_struct.shape[0] - self._read_index)
@@ -425,8 +439,11 @@ class EZShmMirror:
                 ),
                 axis=0,
             )
+            times = np.concatenate(
+                (self._mirror_state.times_arr[self._read_index :], self._mirror_state.times_arr[:n_after_wrap])
+            )
 
         self._read_index = (self._read_index + n) % self._mirror_state.meta_struct.shape[0]
         self._last_meta.wrap_counter = self._mirror_state.meta_struct.wrap_counter
 
-        return result, b_overflow
+        return result, times, b_overflow

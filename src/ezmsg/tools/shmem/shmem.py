@@ -20,6 +20,10 @@ Upon receiving a data message, its metadata is checked, and if it does not match
 The other half must monitor the metadata shared memory to see if it changes, and if it does then it must recreate
 the data shared memory buffer reader at the new location.
 
+The data segment holds two arrays: first one float64 timestamp per frame (the buffered axis's value for that frame),
+then the frames themselves. Both are written before `write_index` advances, so a reader that takes frames from the
+ring takes their times from the same indices and the two always agree. See `ring_views`.
+
 Finally, there is a third piece of shared memory carrying everything about the AxisArray that does not fit in the
 fixed-size metadata header: the non-buffered coordinate axes (e.g. a `ch` axis holding per-channel bank/elec/label),
 axis units, and the message `attrs`. It lives at shorten_shmem_name(f"{shmem_name}/meta{meta_generation}") and is
@@ -83,7 +87,10 @@ MAXKEYLEN = 1024
 # from a header written by a build old enough to predate this check.
 SHMEM_META_MAGIC = 0x455A4D53
 
-# Bumped on any change to ShmemArrMeta._fields_ or to the .aux_meta wire format.
+# Bumped on any change to ShmemArrMeta._fields_, to the data segment's layout
+# (see ring_views), or to the .aux_meta wire format.
+#
+# 2: the data segment leads with one float64 timestamp per frame.
 #
 # The two halves of a shmem link must be the same version -- there is no
 # compatibility shim, by choice: the layouts are an internal detail between two
@@ -91,7 +98,7 @@ SHMEM_META_MAGIC = 0x455A4D53
 # cost more than it is worth. What we do owe is a loud failure rather than a
 # quiet one, so the reader validates the magic and version up front and raises
 # instead of misreading a header it does not understand.
-SHMEM_META_STRUCT_VERSION = 1
+SHMEM_META_STRUCT_VERSION = 2
 
 
 class ShmemVersionError(RuntimeError):
@@ -153,6 +160,23 @@ class ShmemArrMeta(ctypes.Structure):
         ctypes.memmove(self._key_bytes, key_bytes[: self._key_len], self._key_len)
 
 
+def ring_views(buf: memoryview, meta: ShmemArrMeta) -> typing.Tuple[npt.NDArray, npt.NDArray]:
+    """The data segment's two arrays: per-frame timestamps (float64), then the frames.
+
+    Times lead so both arrays are aligned for any frame dtype. Writer and reader
+    both call this, so the layout is stated once.
+    """
+    n_frames = meta.shape[0]
+    times = np.ndarray((n_frames,), dtype=np.float64, buffer=buf[: n_frames * 8])
+    frames = np.ndarray(meta.shape[: meta.ndim], dtype=np.dtype(meta.dtype), buffer=buf[n_frames * 8 :])
+    return times, frames
+
+
+def ring_nbytes(n_frames: int, frame_shape: typing.Tuple[int, ...], itemsize: int) -> int:
+    """Size of the data segment described by :func:`ring_views`."""
+    return int(n_frames * 8 + n_frames * np.prod(frame_shape) * itemsize)
+
+
 class ShMemCircBuffSettings(ez.Settings):
     shmem_name: typing.Optional[str]
     buf_dur: float
@@ -180,6 +204,8 @@ class ShMemCircBuffState(ez.State):
     meta_struct: typing.Optional[ShmemArrMeta] = None
     buffer_shmem: typing.Optional[SharedMemory] = None
     buffer_arr: typing.Optional[npt.NDArray] = None
+    # One timestamp per frame of buffer_arr, at the same ring indices.
+    times_arr: typing.Optional[npt.NDArray] = None
     meta_hash: int = -1
     # The dimension currently buffered along; see ShMemCircBuffSettings.axis.
     buff_axis: typing.Optional[str] = None
@@ -331,6 +357,7 @@ class ShMemCircBuff(ez.Unit):
 
         # Destroy the buffer
         self.STATE.buffer_arr = None
+        self.STATE.times_arr = None
 
         # Destroy the shared memory object
         if self.STATE.buffer_shmem is not None:
@@ -547,7 +574,7 @@ class ShMemCircBuff(ez.Unit):
         """
         self.STATE.meta_struct.buffer_generation += 1
         msg_dtype, msg_srate, n_frames, frame_shape = self._get_msg_meta(msg)
-        buff_size = int(n_frames * np.prod(frame_shape) * msg.data.itemsize)
+        buff_size = ring_nbytes(n_frames, frame_shape, msg.data.itemsize)
         buff_shm_name = self.SETTINGS.shmem_name + "/buffer" + str(self.STATE.meta_struct.buffer_generation)
         short_name = shorten_shmem_name(buff_shm_name)
         self.STATE.buffer_shmem = _persist_create_shmem(
@@ -556,11 +583,7 @@ class ShMemCircBuff(ez.Unit):
             purpose=f"data ring gen {self.STATE.meta_struct.buffer_generation} "
             f"({'x'.join(str(d) for d in (n_frames,) + frame_shape)})",
         )
-        self.STATE.buffer_arr = np.ndarray(
-            self.STATE.meta_struct.shape[: self.STATE.meta_struct.ndim],
-            dtype=np.dtype(self.STATE.meta_struct.dtype.decode("utf8")),
-            buffer=self.STATE.buffer_shmem.buf[:],
-        )
+        self.STATE.times_arr, self.STATE.buffer_arr = ring_views(self.STATE.buffer_shmem.buf, self.STATE.meta_struct)
         self.STATE.meta_struct.write_index = 0
         self.STATE.meta_struct.wrap_counter = 0
         self.STATE.meta_struct.bvalid = True
@@ -612,14 +635,23 @@ class ShMemCircBuff(ez.Unit):
         self._update_aux_if_needed(msg)
 
         n_samples = data.shape[0]
-        write_stop = self.STATE.meta_struct.write_index + n_samples
+        axis = msg.axes[buff_axis]
+        times = axis.data if hasattr(axis, "data") else axis.offset + np.arange(n_samples) * axis.gain
+        write_index = self.STATE.meta_struct.write_index
+        write_stop = write_index + n_samples
 
+        # Frames and times both land before write_index moves, so a reader
+        # never sees one without the other.
         if write_stop > self.STATE.buffer_arr.shape[0]:
             overflow = write_stop - self.STATE.buffer_arr.shape[0]
-            self.STATE.buffer_arr[self.STATE.meta_struct.write_index :] = data[: n_samples - overflow]
-            self.STATE.buffer_arr[:overflow] = data[n_samples - overflow :]
+            split = n_samples - overflow
+            self.STATE.buffer_arr[write_index:] = data[:split]
+            self.STATE.buffer_arr[:overflow] = data[split:]
+            self.STATE.times_arr[write_index:] = times[:split]
+            self.STATE.times_arr[:overflow] = times[split:]
             self.STATE.meta_struct.write_index = overflow
             self.STATE.meta_struct.wrap_counter += 1
         else:
-            self.STATE.buffer_arr[self.STATE.meta_struct.write_index : write_stop] = data[:]
+            self.STATE.buffer_arr[write_index:write_stop] = data[:]
+            self.STATE.times_arr[write_index:write_stop] = times
             self.STATE.meta_struct.write_index = write_stop
