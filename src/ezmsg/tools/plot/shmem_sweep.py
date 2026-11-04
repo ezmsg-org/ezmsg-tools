@@ -56,6 +56,9 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         shmem_name: str,
         *,
         display_dur: float = 5.0,
+        amplitude_scale: float = 1.0,
+        autoscale: bool = True,
+        y_range: float | None = None,
         n_visible: int | None = None,
         poll_hz: float | None = None,
         max_fps: float | None = None,
@@ -66,7 +69,10 @@ class ShmemSweepWidget(QtWidgets.QWidget):
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._display_dur = display_dur
+        # Time span and amplitude scales for the next plot built; see sweep_scale.
+        self._scale: dict[str, typing.Any] = dict(
+            display_dur=display_dur, amplitude_scale=amplitude_scale, autoscale=autoscale, y_range=y_range
+        )
         self._n_visible = n_visible
         self._max_fps = max_fps
         self._n_columns = n_columns
@@ -104,6 +110,26 @@ class ShmemSweepWidget(QtWidgets.QWidget):
     def sweep(self) -> SweepWidget | None:
         """The inner plot, or None before the first data arrives."""
         return self._sweep
+
+    @property
+    def sweep_scale(self) -> dict[str, typing.Any]:
+        """The time span and amplitude scales in force, keyed like ``__init__``.
+
+        ``display_dur``, ``amplitude_scale``, ``autoscale`` and ``y_range`` (the
+        fixed half-row span, ``None`` while autoscaling): the live plot's, or
+        the configured ones before the plot exists. Pass them back to
+        ``__init__`` to restore a view the user left.
+        """
+        buf = getattr(self._sweep, "sweep_buffer", None)
+        if buf is None:
+            return dict(self._scale)
+        autoscale = bool(buf.autoscale)
+        return dict(
+            display_dur=float(buf.display_dur),
+            amplitude_scale=float(buf.amplitude_scale),
+            autoscale=autoscale,
+            y_range=None if autoscale else float(buf.y_range),
+        )
 
     @property
     def stream_shape(self) -> StreamShape | None:
@@ -272,10 +298,10 @@ class ShmemSweepWidget(QtWidgets.QWidget):
             # must be sized with -- describe_mirror reads it off the ring header,
             # so it is already post-decimation.
             srate=shape.srate,
-            display_dur=self._display_dur,
             n_visible=self._n_visible if self._n_visible is not None else shape.n_channels,
             channel_labels=self._labels_for(shape),
             envelope=shape.envelope,
+            **self.sweep_scale,
             **kwargs,
         )
 
@@ -286,12 +312,9 @@ class ShmemSweepWidget(QtWidgets.QWidget):
             shape.srate,
             " (min/max envelope)" if shape.envelope else "",
         )
-        # Keep whatever time span the user had scrolled to across a rebuild.
+        # Keep whatever time span and amplitude the user had set across a rebuild.
         if self._sweep is not None:
-            buf = getattr(self._sweep, "sweep_buffer", None)
-            dur = getattr(buf, "display_dur", None)
-            if dur:
-                self._display_dur = dur
+            self._scale = self.sweep_scale
             self._close_figure()
             self._layout.removeWidget(self._sweep)
             self._sweep.deleteLater()

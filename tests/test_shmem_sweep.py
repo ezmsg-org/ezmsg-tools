@@ -5,6 +5,9 @@ here is the part that does not: how often to read, and the rule for when a
 stream change means rebuilding the plot rather than resizing it.
 """
 
+import os
+from types import SimpleNamespace
+
 import pytest
 
 # Reaching the widget needs Qt and a rendering backend; a headless runner has
@@ -77,3 +80,38 @@ def test_rebuild_only_when_the_layout_is_invalid(before, after, rebuild):
 
 def test_first_shape_always_builds():
     assert _mod.ShmemSweepWidget._needs_rebuild(None, shape()) is True
+
+
+# ---- time and amplitude scales -----------------------------------------------
+
+
+@pytest.fixture
+def widget():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6 import QtWidgets
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])  # noqa: F841 - must outlive the widget
+    w = _mod.ShmemSweepWidget("test-sweep-scale", display_dur=2.0, amplitude_scale=3.0, autoscale=False, y_range=4.0)
+    w._timer.stop()
+    yield w
+    w.shutdown()
+
+
+def test_scale_is_configured_before_the_plot_exists(widget):
+    scale = dict(display_dur=2.0, amplitude_scale=3.0, autoscale=False, y_range=4.0)
+    assert widget.sweep_scale == scale
+    config = widget._config_for(shape())
+    assert {k: getattr(config, k) for k in scale} == scale
+
+
+def test_scale_follows_the_live_plot_into_the_next_build(widget):
+    """What the user changed on the plot is what a rebuilt plot starts from."""
+    buf = SimpleNamespace(display_dur=8.0, amplitude_scale=0.5, autoscale=True, y_range=9.0)
+    widget._sweep = SimpleNamespace(sweep_buffer=buf)
+    try:
+        assert widget.sweep_scale == dict(display_dur=8.0, amplitude_scale=0.5, autoscale=True, y_range=None)
+        assert widget._config_for(shape()).display_dur == 8.0
+        buf.autoscale = False
+        assert widget._config_for(shape()).y_range == 9.0
+    finally:
+        widget._sweep = None
