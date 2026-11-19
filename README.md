@@ -1,6 +1,6 @@
 # ezmsg-tools
 
-A namespace package for [ezmsg](https://github.com/iscoe/ezmsg) to visualize running graphs and data.
+A namespace package for [ezmsg](https://github.com/ezmsg-org/ezmsg) to visualize running graphs and data.
 
 Key features:
 
